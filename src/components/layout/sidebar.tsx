@@ -142,7 +142,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   // name diverges and the strip becomes meaningful — that's the signal
   // we gate on. Wait for the profile fetch to settle first, otherwise
   // the strip flashes in once the row resolves (a layout jump).
-  const displayCompanyName = profile?.business_name?.trim() || account?.name;
+  const displayCompanyName = account?.name;
   const showAccountStrip =
     !profileLoading &&
     (accountRole === 'owner' || accountRole === 'admin') &&
