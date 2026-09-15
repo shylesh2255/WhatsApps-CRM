@@ -12,16 +12,17 @@
     "signingIn": "Signing in...",
     "signIn": "Sign in",
     "noAccount": "Don't have an account?",
-    "createAccount": "Create account"
+    "createAccount": "Sign Up Here"
   },
   "Sidebar": {
-    "title": "CRM Template for WhatsApp",
+    "title": "My WhatsApp CRM",
     "dashboard": "Dashboard",
     "inbox": "Inbox",
     "notifications": "Notifications",
     "contacts": "Contacts",
     "pipelines": "Pipelines",
     "broadcasts": "Broadcasts",
+    "products": "Products",
     "automations": "Automations",
     "flows": "Flows",
     "aiAgents": "AI Agents",
@@ -1549,7 +1550,8 @@
       "fields": "Fields & tags",
       "deals": "Deals & currency",
       "members": "Team members",
-      "api": "API keys"
+      "api": "API keys",
+      "billing": "Billing"
     },
     "groups": {
       "account": "Account",
@@ -1607,6 +1609,20 @@
       "signingOut": "Signing out…",
       "signOutEverywhere": "Sign out everywhere",
       "signOutFailed": "Sign-out failed: {message}"
+    },
+    "billing": {
+      "title": "Billing",
+      "description": "Manage your monthly CRM subscription.",
+      "planName": "CRM subscription",
+      "loading": "Loading subscription...",
+      "active": "Active subscription",
+      "notActive": "No active subscription",
+      "subscriptionActive": "Your subscription is active.",
+      "renewsOn": "Renews on {date}",
+      "cancelsAtPeriodEnd": "Cancellation is scheduled at the end of this billing period.",
+      "subscribe": "Subscribe monthly",
+      "loadFailed": "Could not load billing status",
+      "checkoutFailed": "Could not start checkout"
     },
     "appearance": {
       "title": "Appearance",

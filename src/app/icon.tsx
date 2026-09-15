@@ -22,7 +22,7 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#7c3aed", // primary (Hostinger-aligned purple)
+          background: "#03fcec", // primary (Hostinger-aligned purple)
           borderRadius: 6,
         }}
       >
@@ -31,7 +31,7 @@ export default function Icon() {
           height="20"
           viewBox="0 0 24 24"
           fill="none"
-          stroke="#ffffff"
+          stroke="#7f03fc"
           strokeWidth="2.5"
           strokeLinecap="round"
           strokeLinejoin="round"

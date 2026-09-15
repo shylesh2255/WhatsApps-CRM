@@ -36,6 +36,7 @@ export function PresenceHeartbeat() {
     const supabase = createClient();
     let cancelled = false;
     let lastBeatAt = 0;
+    let failureLogged = false;
     lastActivityRef.current = Date.now();
 
     const markActive = () => {
@@ -56,13 +57,28 @@ export function PresenceHeartbeat() {
       const t = Date.now();
       if (t - lastBeatAt < 1_000) return;
       lastBeatAt = t;
-      const { error } = await supabase.rpc("touch_presence", {
-        p_status: currentStatus(),
-      });
-      if (error && !cancelled) {
-        // Non-fatal: presence is best-effort. Log once per failure so a
-        // misconfigured RPC is visible without spamming.
-        console.error("[PresenceHeartbeat] touch_presence failed:", error.message);
+      try {
+        const { error } = await supabase.rpc("touch_presence", {
+          p_status: currentStatus(),
+        });
+        if (error && !cancelled && !failureLogged) {
+          // Non-fatal: presence is best-effort. Log once per failure so a
+          // misconfigured RPC is visible without spamming.
+          console.error(
+            "[PresenceHeartbeat] touch_presence failed:",
+            error.message,
+          );
+          failureLogged = true;
+        }
+        if (!error) failureLogged = false;
+      } catch (error) {
+        if (!cancelled && !failureLogged) {
+          console.warn(
+            "[PresenceHeartbeat] touch_presence unavailable; retrying later.",
+            error instanceof Error ? error.message : error,
+          );
+          failureLogged = true;
+        }
       }
     };
 
