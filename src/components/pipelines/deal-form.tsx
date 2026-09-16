@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
+import { clampNonNegative } from "@/lib/validation/format";
 
 interface DealFormProps {
   open: boolean;
@@ -160,7 +161,7 @@ export function DealForm({
 
     const payload = {
       title: title.trim(),
-      value: parseFloat(value) || 0,
+      value: clampNonNegative(parseFloat(value) || 0),
       currency,
       contact_id: contactId,
       pipeline_id: pipelineId,

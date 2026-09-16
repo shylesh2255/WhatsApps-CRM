@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account';
+import { isValidEmail, isValidPhone } from '@/lib/validation/format';
 
 type BranchBody = {
   id?: unknown;
@@ -41,6 +42,14 @@ export async function POST(request: Request) {
     if (!name || !code) {
       return NextResponse.json({ error: 'Branch name and code are required' }, { status: 400 });
     }
+    const phone = text(body?.phone);
+    if (phone && !isValidPhone(phone)) {
+      return NextResponse.json({ error: 'Enter a valid phone number' }, { status: 400 });
+    }
+    const email = text(body?.email);
+    if (email && !isValidEmail(email)) {
+      return NextResponse.json({ error: 'Enter a valid email address' }, { status: 400 });
+    }
     const managerUserId = text(body?.managerUserId) || null;
     if (managerUserId) {
       const { data: manager } = await ctx.supabase
@@ -58,8 +67,8 @@ export async function POST(request: Request) {
         name,
         code,
         address: text(body?.address) || null,
-        phone: text(body?.phone) || null,
-        email: text(body?.email) || null,
+        phone: phone || null,
+        email: email || null,
         manager_user_id: managerUserId,
         active: body?.active !== false,
       })
@@ -90,6 +99,12 @@ export async function PATCH(request: Request) {
     const updates: Record<string, unknown> = {};
     if (typeof body?.name === 'string' && text(body.name)) updates.name = text(body.name);
     if (typeof body?.code === 'string' && text(body.code)) updates.code = text(body.code).toUpperCase();
+    if (typeof body?.phone === 'string' && text(body.phone) && !isValidPhone(text(body.phone))) {
+      return NextResponse.json({ error: 'Enter a valid phone number' }, { status: 400 });
+    }
+    if (typeof body?.email === 'string' && text(body.email) && !isValidEmail(text(body.email))) {
+      return NextResponse.json({ error: 'Enter a valid email address' }, { status: 400 });
+    }
     for (const [input, column] of [['address', 'address'], ['phone', 'phone'], ['email', 'email']] as const) {
       if (typeof body?.[input] === 'string') updates[column] = text(body[input]) || null;
     }

@@ -10,6 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Upload, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
+import { CURRENCIES } from "@/lib/currency";
+import { clampNonNegative } from "@/lib/validation/format";
 
 interface ProductFormProps {
   accountId: string;
@@ -106,6 +108,10 @@ export function ProductForm({ accountId, product, onSuccess }: ProductFormProps)
       toast.error("Product name is required");
       return;
     }
+    if (!price.trim() || Number.isNaN(parseFloat(price))) {
+      toast.error("Enter a valid price");
+      return;
+    }
 
     if (!profile) return;
 
@@ -126,7 +132,7 @@ export function ProductForm({ accountId, product, onSuccess }: ProductFormProps)
         account_id: accountId,
         name: name.trim(),
         description: description.trim() || null,
-        price: parseFloat(price) || 0,
+        price: clampNonNegative(parseFloat(price) || 0),
         currency: currency || "INR",
         category: category.trim() || null,
         sku: sku.trim() || null,
@@ -237,13 +243,19 @@ export function ProductForm({ accountId, product, onSuccess }: ProductFormProps)
 
         <div>
           <Label htmlFor="currency">Currency</Label>
-          <Input
+          <select
             id="currency"
-            placeholder="INR"
             value={currency}
             onChange={(e) => setCurrency(e.target.value)}
             disabled={isSubmitting}
-          />
+            className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm text-foreground outline-none focus:border-primary"
+          >
+            {CURRENCIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.code}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 

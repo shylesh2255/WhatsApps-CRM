@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { isValidEmail, isValidPhone } from '@/lib/validation/format';
 
 interface ContactFormProps {
   open: boolean;
@@ -126,6 +127,14 @@ export function ContactForm({
 
     if (!phone.trim()) {
       toast.error(t('phoneRequired'));
+      return;
+    }
+    if (!isValidPhone(phone)) {
+      toast.error('Enter a valid phone number');
+      return;
+    }
+    if (email.trim() && !isValidEmail(email)) {
+      toast.error('Enter a valid email address');
       return;
     }
 

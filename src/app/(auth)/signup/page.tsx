@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { MessageSquare, CheckCircle, UsersRound } from "lucide-react";
+import { isValidGstNumber } from "@/lib/validation/format";
 
 // `useSearchParams` opts the component out of static prerendering
 // unless wrapped in Suspense — same pattern as /login.
@@ -64,6 +65,11 @@ function SignupPageInner() {
 
     if (password.length < 6) {
       setError("Password must be at least 6 characters");
+      return;
+    }
+
+    if (gstNumber.trim() && !isValidGstNumber(gstNumber)) {
+      setError("Enter a valid GST number (e.g., 22AAAAA0000A1Z5)");
       return;
     }
 
