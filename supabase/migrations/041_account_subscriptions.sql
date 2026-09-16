@@ -15,9 +15,7 @@ ALTER TABLE account_subscriptions ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "account_members_can_view_subscription"
   ON account_subscriptions FOR SELECT
-  USING (account_id IN (
-    SELECT account_id FROM account_members WHERE profile_id = auth.uid()::uuid
-  ));
+  USING (is_account_member(account_id));
 
 CREATE INDEX IF NOT EXISTS idx_account_subscriptions_account_id
   ON account_subscriptions(account_id);

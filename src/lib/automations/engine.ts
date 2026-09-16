@@ -383,7 +383,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       // payload surfaces as a clear failed-step detail rather than a raw
       // Meta 400 mid-conversation.
       const check = validateInteractivePayload(payload)
-      if (!check.ok) throw new Error(check.error)
+      if (check.ok === false) throw new Error(check.error)
       const conversationId = await resolveConversationId(args)
       const { whatsapp_message_id } = await engineSendInteractive({
         accountId: args.automation.account_id,
@@ -758,7 +758,7 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
         .eq('id', args.contactId)
         .eq('account_id', args.automation.account_id)
         .maybeSingle()
-      const v = (data as Record<string, unknown> | null)?.[cfg.operand]
+      const v = (data as unknown as Record<string, unknown> | null)?.[cfg.operand]
       return v != null && String(v) === String(cfg.value ?? '')
     }
     case 'message_content': {

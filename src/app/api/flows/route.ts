@@ -30,7 +30,7 @@ async function requireUser(): Promise<
 
 export async function GET() {
   const guard = await requireUser()
-  if (!guard.ok) {
+  if (guard.ok === false) {
     return NextResponse.json(guard.body, { status: guard.status })
   }
   const { supabase } = guard
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
   }
 
   const guard = await requireUser()
-  if (!guard.ok) {
+  if (guard.ok === false) {
     return NextResponse.json(guard.body, { status: guard.status })
   }
   const { userId, supabase } = guard

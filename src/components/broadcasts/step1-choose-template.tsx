@@ -6,6 +6,7 @@ import { MessageTemplate } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Loader2, FileText, ArrowRight } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { useAuth } from '@/hooks/use-auth';
 
 const categoryColors: Record<string, string> = {
   Marketing: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
@@ -22,6 +23,7 @@ interface Step1Props {
 
 export function Step1ChooseTemplate({ selectedTemplate, onSelect, onNext, onBack }: Step1Props) {
   const t = useTranslations('Broadcasts.wizard');
+  const { accountId } = useAuth();
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +39,7 @@ export function Step1ChooseTemplate({ selectedTemplate, onSelect, onNext, onBack
           .from('message_templates')
           .select('*')
           .eq('status', 'APPROVED')
+          .eq('account_id', accountId)
           .order('created_at', { ascending: false });
 
         if (fetchError) throw fetchError;
@@ -49,7 +52,7 @@ export function Step1ChooseTemplate({ selectedTemplate, onSelect, onNext, onBack
     }
 
     fetchTemplates();
-  }, []);
+  }, [accountId, t]);
 
   if (loading) {
     return (

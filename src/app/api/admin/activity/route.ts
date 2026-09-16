@@ -1,0 +1,3 @@
+import { NextResponse } from 'next/server';
+import { requireRole, toErrorResponse } from '@/lib/auth/account';
+export async function GET() { try { const ctx = await requireRole('admin'); const { data, error } = await ctx.supabase.from('audit_logs').select('*').eq('account_id', ctx.accountId).order('created_at', { ascending: false }).limit(200); if (error) throw error; return NextResponse.json({ logs: data ?? [] }); } catch (error) { return toErrorResponse(error); } }

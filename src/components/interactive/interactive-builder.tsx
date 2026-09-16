@@ -163,7 +163,7 @@ export function InteractiveBuilder({
             Show reply IDs (advanced)
           </label>
 
-          {!validation.ok && (
+          {validation.ok === false && (
             <p className="text-xs text-red-400">{validation.error}</p>
           )}
         </div>

@@ -36,7 +36,7 @@ export function ProductForm({ accountId, product, onSuccess }: ProductFormProps)
   const [price, setPrice] = useState(product?.price.toString() || "0");
   const [currency, setCurrency] = useState(product?.currency || "INR");
   const [category, setCategory] = useState(product?.category || "");
-  const [sku, setSku] = useState(product?.sku || "");
+  const [sku] = useState(product?.sku || `SKU-${crypto.randomUUID().slice(0, 8).toUpperCase()}`);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -266,7 +266,7 @@ export function ProductForm({ accountId, product, onSuccess }: ProductFormProps)
           id="sku"
           placeholder="e.g., SHIRT-001"
           value={sku}
-          onChange={(e) => setSku(e.target.value)}
+          readOnly
           disabled={isSubmitting}
         />
         <p className="text-xs text-muted-foreground mt-1">

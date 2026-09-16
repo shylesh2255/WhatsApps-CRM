@@ -637,6 +637,8 @@ async function processMessage(
       mirrorMedia ? { accountId } : null
     )
 
+  await captureTaskFeedbackReply(accountId, senderPhone, contentText)
+
   // Resolve swipe-reply context if present. A missing parent is fine —
   // we just store NULL and the UI renders the message without a quote.
   let replyToInternalId: string | null = null
@@ -894,6 +896,43 @@ async function processMessage(
     content_type: contentType,
     text: contentText,
   })
+}
+
+async function captureTaskFeedbackReply(
+  accountId: string,
+  senderPhone: string,
+  contentText: string | null,
+) {
+  const text = contentText?.trim() ?? ''
+  const match = text.match(/^([1-5])(?:\s*[-:.)]\s*|\s+)?([\s\S]*)$/)
+  if (!match) return
+
+  const rating = Number(match[1])
+  const comment = match[2].trim() || null
+  const admin = supabaseAdmin()
+  const { data: tasks, error: taskError } = await admin
+    .from('tasks')
+    .select('id, task_number, phone_number')
+    .eq('account_id', accountId)
+    .eq('status', 'COMPLETED')
+    .order('completed_at', { ascending: false })
+    .limit(100)
+  if (taskError) {
+    console.warn('[task feedback] could not find completed tasks:', taskError.message)
+    return
+  }
+
+  const task = (tasks ?? []).find((candidate) => normalizePhone(candidate.phone_number) === senderPhone)
+  if (!task) return
+  const { error } = await admin.from('task_feedback').upsert({
+    account_id: accountId,
+    task_id: task.id,
+    rating,
+    comment,
+  }, { onConflict: 'task_id' })
+  if (error) {
+    console.warn('[task feedback] could not save WhatsApp reply:', error.message)
+  }
 }
 
 async function parseMessageContent(

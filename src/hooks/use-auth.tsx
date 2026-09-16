@@ -24,6 +24,8 @@ import {
 interface Profile {
   id: string;
   full_name: string | null;
+  customer_code?: string | null;
+  business_name: string | null;
   email: string;
   avatar_url: string | null;
   role: string | null;
@@ -146,6 +148,8 @@ function sleep(ms: number) {
 interface ProfileRow {
   id: string;
   full_name: string | null;
+  customer_code?: string | null;
+  business_name: string | null;
   email: string;
   avatar_url: string | null;
   role: string | null;
@@ -192,7 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const result = await supabase
           .from("profiles")
           .select(
-            "id, full_name, email, avatar_url, role, beta_features, account_id, account_role",
+            "id, full_name, customer_code, business_name, email, avatar_url, role, beta_features, account_id, account_role",
           )
           .eq("user_id", userId)
           .maybeSingle();
@@ -270,6 +274,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile({
           id: data.id,
           full_name: data.full_name,
+          customer_code: data.customer_code,
+          business_name: data.business_name,
           email: data.email,
           avatar_url: data.avatar_url,
           role: data.role,

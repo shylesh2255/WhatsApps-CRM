@@ -1,0 +1,3 @@
+import { NextResponse } from 'next/server';
+import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account';
+export async function GET() { try { const ctx = await getCurrentAccount(); const { data, error } = await ctx.supabase.from('customer_notifications').select('*').eq('user_id', ctx.userId).order('created_at', { ascending: false }).limit(100); if (error) throw error; return NextResponse.json({ notifications: data ?? [] }); } catch (error) { return toErrorResponse(error); } }

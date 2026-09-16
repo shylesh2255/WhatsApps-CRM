@@ -45,7 +45,7 @@ export async function POST(request: Request) {
 
   if (kind === 'interactive') {
     const result = validateInteractivePayload(body.interactive_payload)
-    if (!result.ok) {
+    if (result.ok === false) {
       return NextResponse.json({ error: result.error }, { status: 400 })
     }
     interactive_payload = body.interactive_payload

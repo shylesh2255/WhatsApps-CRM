@@ -22,17 +22,42 @@ vi.mock("@supabase/ssr", () => ({
     opts: {
       cookies: { setAll: (c: typeof refreshedCookies) => void };
     },
-  ) => ({
-    auth: {
-      // Mirrors real auth-js: an expired access token is transparently
-      // refreshed inside getUser(), which rotates the refresh token and
-      // pushes the new cookies through setAll() before resolving.
-      getUser: async () => {
-        if (refreshedCookies.length) opts.cookies.setAll(refreshedCookies);
-        return { data: { user: mockUser } };
+  ) => {
+    const createQuery = (data: unknown) => {
+      const query = {
+        select: () => query,
+        eq: () => query,
+        order: () => query,
+        limit: () => query,
+        maybeSingle: async () => ({ data }),
+      };
+      return query;
+    };
+
+    const from = (table: string) => createQuery(
+      table === "profiles"
+        ? {
+            account_id: "account-1",
+            account_role: "admin",
+            account_status: "active",
+            must_change_password: false,
+          }
+        : null,
+    );
+
+    return {
+      auth: {
+        // Mirrors real auth-js: an expired access token is transparently
+        // refreshed inside getUser(), which rotates the refresh token and
+        // pushes the new cookies through setAll() before resolving.
+        getUser: async () => {
+          if (refreshedCookies.length) opts.cookies.setAll(refreshedCookies);
+          return { data: { user: mockUser } };
+        },
       },
-    },
-  }),
+      from,
+    };
+  },
 }));
 
 // Imported after the mock is registered.

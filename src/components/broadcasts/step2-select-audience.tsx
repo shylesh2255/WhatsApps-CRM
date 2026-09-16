@@ -232,7 +232,7 @@ export function Step2SelectAudience({
 
     const result = parseBroadcastCsv(await selected.text());
 
-    if (!result.ok) {
+    if (result.ok === false) {
       toast.error(
         result.error === 'missing_phone_column'
           ? t('selectAudience.errorCsvMissingPhone')

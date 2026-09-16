@@ -40,7 +40,7 @@ export async function PATCH(
     update.kind = body.kind
     if (body.kind === 'interactive') {
       const result = validateInteractivePayload(body.interactive_payload)
-      if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })
+      if (result.ok === false) return NextResponse.json({ error: result.error }, { status: 400 })
       update.interactive_payload = body.interactive_payload
       update.content_text = null
     } else {
@@ -60,7 +60,7 @@ export async function PATCH(
     if ('interactive_payload' in body) {
       if (body.interactive_payload != null) {
         const result = validateInteractivePayload(body.interactive_payload)
-        if (!result.ok) {
+        if (result.ok === false) {
           return NextResponse.json({ error: result.error }, { status: 400 })
         }
       }

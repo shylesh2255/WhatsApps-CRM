@@ -64,7 +64,7 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
       // The whole step_config IS the interactive payload; validate it
       // against Meta's limits (same check the engine runs before send).
       const result = validateInteractivePayload(c)
-      if (!result.ok) {
+      if (result.ok === false) {
         issues.push({ path: `${path}.interactive`, message: result.error })
       }
       break

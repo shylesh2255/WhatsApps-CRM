@@ -310,7 +310,7 @@ export function MessageComposer({
 
   const sendInteractive = useCallback(() => {
     const result = validateInteractivePayload(interactivePayload);
-    if (!result.ok) {
+    if (result.ok === false) {
       toast.error(result.error);
       return;
     }
@@ -322,7 +322,7 @@ export function MessageComposer({
   // Persist the current builder payload as a reusable interactive snippet.
   const saveAsQuickReply = useCallback(async () => {
     const result = validateInteractivePayload(interactivePayload);
-    if (!result.ok) {
+    if (result.ok === false) {
       toast.error(result.error);
       return;
     }

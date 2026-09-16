@@ -230,7 +230,7 @@ export default function JoinPage() {
   }
 
   // ----- Peek failed -----
-  if (!peek.ok) {
+  if (peek.ok === false) {
     const copy = FAIL_COPY[peek.reason];
     return (
       <Card className="w-full max-w-md border-border bg-card">

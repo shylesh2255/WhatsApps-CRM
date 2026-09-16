@@ -212,12 +212,21 @@ export function SettingsOverview({
               count: counts?.customFields ?? 0,
             })}`,
     },
+      {
+        section: 'billing',
+        loading: false,
+        subtitle: 'Manage subscription and payments',
+      },
     {
       section: 'appearance',
       loading: false,
       subtitle: t('appearance', { mode: cap(mode), theme: themeName }),
     },
   ];
+
+  const visibleTiles = accountRole === 'owner' || accountRole === 'admin'
+    ? tiles
+    : tiles.filter((tile) => tile.section !== 'members');
 
   return (
     <section className="animate-in fade-in-50 duration-200">
@@ -251,7 +260,7 @@ export function SettingsOverview({
 
       {/* Status tiles */}
       <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {tiles.map(({ section, loading, subtitle }) => {
+        {visibleTiles.map(({ section, loading, subtitle }) => {
           const meta = SECTION_META[section];
           const Icon = meta.icon;
           return (

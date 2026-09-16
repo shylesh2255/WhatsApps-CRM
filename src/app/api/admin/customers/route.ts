@@ -119,7 +119,7 @@ export async function POST(request: Request) {
     if (typeof body?.planName === 'string' && body.planName.trim()) {
       const { data: plan } = await admin.from('billing_plans').select('id, name, monthly_price, currency, chat_limit').eq('name', body.planName.trim()).eq('active', true).maybeSingle();
       const start = new Date();
-      const expiry = new Date(start.getTime() + 30 * 86400000);
+      const expiry = plan?.monthly_price === 0 ? null : new Date(start.getTime() + 30 * 86400000);
       const subscriptionAmount = plan ? plan.monthly_price : (typeof body.amount === 'number' ? body.amount : 0);
       const receivedAmount = typeof body.receivedAmount === 'number' ? body.receivedAmount : 0;
       const paymentReceived = receivedAmount >= subscriptionAmount;
@@ -133,7 +133,7 @@ export async function POST(request: Request) {
         chat_limit: plan?.chat_limit ?? null,
         duration_days: 30,
         start_date: start.toISOString(),
-        expiry_date: expiry.toISOString(),
+        expiry_date: expiry?.toISOString() ?? null,
         payment_method: paymentMethod,
         payment_status: paymentReceived ? 'paid' : 'pending',
         status: paymentReceived ? 'active' : 'payment_pending',
@@ -149,9 +149,9 @@ export async function POST(request: Request) {
         payment_method: paymentMethod,
         payment_date: paymentReceived ? (typeof body.receivedDate === 'string' ? body.receivedDate : new Date().toISOString()) : null,
         payment_details: body.paymentDetails && typeof body.paymentDetails === 'object' ? body.paymentDetails : {},
-        due_date: expiry.toISOString(),
+        due_date: expiry?.toISOString() ?? null,
         period_start: start.toISOString(),
-        period_end: expiry.toISOString(),
+        period_end: expiry?.toISOString() ?? null,
         status: paymentReceived ? 'paid' : 'pending',
       });
     }

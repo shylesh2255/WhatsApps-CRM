@@ -60,6 +60,17 @@ function LoginPageInner() {
       return;
     }
 
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("must_change_password")
+      .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "")
+      .maybeSingle();
+
+    if (profile?.must_change_password) {
+      window.location.href = "/change-password";
+      return;
+    }
+
     // Full-page navigation (not router.push) so the browser issues a
     // fresh top-level request that carries the just-written Supabase
     // auth cookies to the middleware gating /dashboard. A soft
@@ -150,17 +161,7 @@ function LoginPageInner() {
           </form>
 
           <p className="mt-6 text-center text-sm text-muted-foreground">
-            {t('noAccount')}{" "}
-            <Link
-              href={
-                inviteToken
-                  ? `/signup?invite=${encodeURIComponent(inviteToken)}`
-                  : "/signup"
-              }
-              className="text-primary hover:text-primary/80"
-            >
-              {t('createAccount')}
-            </Link>
+            Contact your administrator to receive an account.
           </p>
         </CardContent>
       </Card>

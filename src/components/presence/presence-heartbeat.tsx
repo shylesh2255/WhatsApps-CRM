@@ -37,6 +37,7 @@ export function PresenceHeartbeat() {
     let cancelled = false;
     let lastBeatAt = 0;
     let failureLogged = false;
+    let retryAfter = 0;
     lastActivityRef.current = Date.now();
 
     const markActive = () => {
@@ -56,27 +57,39 @@ export function PresenceHeartbeat() {
       // in the same frame. The 30s interval is never affected.
       const t = Date.now();
       if (t - lastBeatAt < 1_000) return;
+      if (t < retryAfter) return;
       lastBeatAt = t;
       try {
         const { error } = await supabase.rpc("touch_presence", {
           p_status: currentStatus(),
         });
         if (error && !cancelled && !failureLogged) {
-          // Non-fatal: presence is best-effort. Log once per failure so a
-          // misconfigured RPC is visible without spamming.
-          console.error(
-            "[PresenceHeartbeat] touch_presence failed:",
+          // Network failures are expected during sleep, offline mode, and
+          // Supabase reconnects. Retry them without filling the console;
+          // keep genuine RPC failures visible for configuration debugging.
+          const isTransient = /failed to fetch|network|timeout|offline/i.test(
             error.message,
           );
+          retryAfter = Date.now() + (isTransient ? 10_000 : 0);
+          if (!isTransient) {
+            console.error(
+              "[PresenceHeartbeat] touch_presence failed:",
+              error.message,
+            );
+          }
           failureLogged = true;
         }
-        if (!error) failureLogged = false;
+        if (!error) {
+          failureLogged = false;
+          retryAfter = 0;
+        }
       } catch (error) {
         if (!cancelled && !failureLogged) {
-          console.warn(
-            "[PresenceHeartbeat] touch_presence unavailable; retrying later.",
-            error instanceof Error ? error.message : error,
-          );
+          const message = error instanceof Error ? error.message : String(error);
+          if (!/failed to fetch|network|timeout|offline/i.test(message)) {
+            console.warn("[PresenceHeartbeat] touch_presence unavailable; retrying later.", message);
+          }
+          retryAfter = Date.now() + 10_000;
           failureLogged = true;
         }
       }

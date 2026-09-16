@@ -35,18 +35,22 @@ CREATE TABLE IF NOT EXISTS user_subscriptions (
 ALTER TABLE billing_plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_subscriptions ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "authenticated_users_can_view_active_plans" ON billing_plans;
 CREATE POLICY "authenticated_users_can_view_active_plans"
   ON billing_plans FOR SELECT TO authenticated
   USING (active = true);
 
+DROP POLICY IF EXISTS "users_can_view_own_subscription" ON user_subscriptions;
 CREATE POLICY "users_can_view_own_subscription"
   ON user_subscriptions FOR SELECT TO authenticated
   USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "account_admins_can_view_subscriptions" ON user_subscriptions;
 CREATE POLICY "account_admins_can_view_subscriptions"
   ON user_subscriptions FOR SELECT TO authenticated
   USING (is_account_member(account_id, 'admin'));
 
+DROP POLICY IF EXISTS "account_admins_can_manage_subscriptions" ON user_subscriptions;
 CREATE POLICY "account_admins_can_manage_subscriptions"
   ON user_subscriptions FOR ALL TO authenticated
   USING (is_account_member(account_id, 'admin'))

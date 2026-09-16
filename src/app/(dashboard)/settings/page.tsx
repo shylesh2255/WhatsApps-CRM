@@ -43,7 +43,7 @@ export default function SettingsPage() {
 function SettingsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { defaultCurrency } = useAuth();
+  const { defaultCurrency, accountRole } = useAuth();
   const { mode } = useTheme();
   const t = useTranslations('Settings');
 
@@ -51,7 +51,9 @@ function SettingsPageInner() {
   // section — deep-linkable, and it keeps the existing links in the
   // app sidebar/header working. Legacy tab values (tags, custom-fields)
   // resolve onto their new home; unknown/empty → the Overview landing.
-  const section = resolveSection(searchParams.get('tab'));
+  const requestedSection = resolveSection(searchParams.get('tab'));
+  const isAdmin = accountRole === 'owner' || accountRole === 'admin';
+  const section = !isAdmin && requestedSection === 'members' ? 'overview' : requestedSection;
 
   const go = (next: SettingsSection) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -72,6 +74,7 @@ function SettingsPageInner() {
 
   const panel: Record<SettingsSection, ReactNode> = {
     overview: <SettingsOverview onSelect={go} />,
+    billing: <BillingPanel />,
     profile: <ProfileForm />,
     security: <SecurityPanel />,
     appearance: <AppearancePanel />,
@@ -82,7 +85,6 @@ function SettingsPageInner() {
     deals: <DealsSettings />,
     members: <MembersTab />,
     api: <ApiKeysSettings />,
-    billing: <BillingPanel />,
   };
 
   return (
@@ -97,7 +99,7 @@ function SettingsPageInner() {
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[236px_minmax(0,1fr)] lg:items-start">
-        <SettingsRail active={section} onSelect={go} hints={hints} />
+        <SettingsRail active={section} onSelect={go} hints={hints} hiddenSections={accountRole === 'owner' || accountRole === 'admin' ? [] : ['members']} />
         <div className="min-w-0">{panel[section]}</div>
       </div>
     </div>

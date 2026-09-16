@@ -54,7 +54,7 @@ export async function GET(
 ) {
   const { id } = await context.params
   const guard = await requireOwnership(id)
-  if (!guard.ok) return NextResponse.json(guard.body, { status: guard.status })
+  if (guard.ok === false) return NextResponse.json(guard.body, { status: guard.status })
   const { supabase } = guard
 
   const [{ data: flow }, { data: nodes }] = await Promise.all([
@@ -103,7 +103,7 @@ export async function PUT(
   }
 
   const guard = await requireOwnership(id)
-  if (!guard.ok) return NextResponse.json(guard.body, { status: guard.status })
+  if (guard.ok === false) return NextResponse.json(guard.body, { status: guard.status })
 
   const body = (await request.json().catch(() => null)) as PutBody | null
   if (!body) {
@@ -198,7 +198,7 @@ export async function DELETE(
   }
 
   const guard = await requireOwnership(id)
-  if (!guard.ok) return NextResponse.json(guard.body, { status: guard.status })
+  if (guard.ok === false) return NextResponse.json(guard.body, { status: guard.status })
 
   // CASCADE on flow_nodes / flow_runs / flow_run_events handles the
   // children. Active runs end abruptly — there's no graceful "drain"
