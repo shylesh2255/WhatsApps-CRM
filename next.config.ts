@@ -3,6 +3,20 @@ import createNextIntlPlugin from 'next-intl/plugin';
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
+// `next/image` refuses to optimize/render any remote host that isn't
+// explicitly allow-listed. Every uploaded image in this app (products,
+// ad banners, avatars) lives in this project's own Supabase Storage —
+// derived from the env var (not hardcoded) so this keeps working for
+// every self-hosted deployment, each pointed at its own Supabase
+// project with a different subdomain.
+const supabaseImageHostname = (() => {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').hostname;
+  } catch {
+    return undefined;
+  }
+})();
+
 /**
  * Baseline security headers applied to every response.
  *
@@ -69,6 +83,12 @@ const nextConfig: NextConfig = {
   // Harmless outside Docker: `next start` keeps working as before.
   output: 'standalone',
   devIndicators: false,
+
+  images: {
+    remotePatterns: supabaseImageHostname
+      ? [{ protocol: 'https', hostname: supabaseImageHostname, pathname: '/storage/v1/object/public/**' }]
+      : [],
+  },
 
   async redirects() {
     return [{ source: '/payments', destination: '/admin', permanent: false }];

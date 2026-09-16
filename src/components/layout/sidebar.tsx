@@ -20,6 +20,7 @@ import {
   Headphones,
   LayoutDashboard,
   LogOut,
+  Megaphone,
   MessageSquare,
   Package,
   Radio,
@@ -156,6 +157,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         { href: '/subscriptions', label: 'Subscriptions', icon: CreditCard },
         { href: '/admin/support', label: 'Support', icon: Headphones },
         { href: '/admin/reports', label: 'Reports', icon: BarChart3 },
+        { href: '/admin/ads', label: 'Ad Banners', icon: Megaphone },
       ]
     : [];
   // Only surface the account-name strip when it actually carries

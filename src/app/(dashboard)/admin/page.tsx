@@ -34,6 +34,7 @@ export default function AdminPage() {
         <AdminLink href="/admin/users" title="Users" description="Review user details without exposing passwords." />
         <AdminLink href="/subscriptions" title="Subscriptions" description="Assign plans, set periods, and track expiry." />
         <AdminLink href="/admin/reports" title="Reports" description="Revenue, growth, and churn trends." />
+        <AdminLink href="/admin/ads" title="Ad Banners" description="Sponsor banners shown to viewer-role users." />
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {['totalCustomers', 'paidCustomers', 'paymentVerificationPending', 'overduePayments', 'paymentsDueToday', 'paymentsDueWithin3Days', 'paymentsDueWithin7Days', 'earlyPayments', 'rejectedPayments', 'totalAmountReceived', 'totalAmountPending', 'totalOverdueAmount'].map((key) => <div key={key} className="rounded-xl border border-border bg-card p-4"><div className="text-xs uppercase tracking-wide text-muted-foreground">{key.replace(/[A-Z]/g, (letter) => ` ${letter}`).trim()}</div><div className="mt-2 text-2xl font-semibold text-foreground">{metrics[key] ?? 0}</div></div>)}

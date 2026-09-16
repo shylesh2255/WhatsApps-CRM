@@ -33,6 +33,7 @@ import { ConversationsChart } from '@/components/dashboard/conversations-chart'
 import { PipelineDonut } from '@/components/dashboard/pipeline-donut'
 import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
+import { AdBannerDisplay } from '@/components/layout/ad-banner-display'
 
 import { useTranslations } from 'next-intl'
 
@@ -40,7 +41,7 @@ type RangeDays = 7 | 30 | 90
 
 export default function DashboardPage() {
   const t = useTranslations('Dashboard.page')
-  const { defaultCurrency } = useAuth()
+  const { defaultCurrency, accountRole } = useAuth()
   const [metrics, setMetrics] = useState<MetricsBundle | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
 
@@ -218,6 +219,9 @@ export default function DashboardPage() {
 
       {/* Response time */}
       <ResponseTimeChart data={responseTime} loading={responseTimeLoading} />
+
+      {/* Sponsor banner — viewer-role users only, platform-wide */}
+      {accountRole === 'viewer' && <AdBannerDisplay />}
 
       {/* Activity feed */}
       <ActivityFeed items={activity} loading={activityLoading} />
