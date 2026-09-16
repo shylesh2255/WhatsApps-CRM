@@ -39,6 +39,15 @@ function SignupPageInner() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [phone, setPhone] = useState("");
+  const [businessName, setBusinessName] = useState("");
+  const [businessType, setBusinessType] = useState("");
+  const [gstNumber, setGstNumber] = useState("");
+  const [address, setAddress] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [country, setCountry] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -74,6 +83,15 @@ function SignupPageInner() {
       options: {
         data: {
           full_name: fullName,
+          phone,
+          business_name: businessName,
+          business_type: businessType,
+          gst_number: gstNumber,
+          address,
+          city,
+          state,
+          postal_code: postalCode,
+          country,
         },
         ...(emailRedirectTo ? { emailRedirectTo } : {}),
       },
@@ -213,6 +231,144 @@ function SignupPageInner() {
                 required
                 className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
               />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="phone" className="text-muted-foreground">
+                Phone
+              </Label>
+              <Input
+                id="phone"
+                type="tel"
+                placeholder="+91 98765 43210"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                required
+                className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="businessName" className="text-muted-foreground">
+                Business name
+              </Label>
+              <Input
+                id="businessName"
+                type="text"
+                placeholder="My Company"
+                value={businessName}
+                onChange={(e) => setBusinessName(e.target.value)}
+                required
+                className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="businessType" className="text-muted-foreground">
+                Business type
+              </Label>
+              <Input
+                id="businessType"
+                type="text"
+                placeholder="Service center"
+                value={businessType}
+                onChange={(e) => setBusinessType(e.target.value)}
+                required
+                className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="gstNumber" className="text-muted-foreground">
+                GST number
+              </Label>
+              <Input
+                id="gstNumber"
+                type="text"
+                placeholder="22AAAAA0000A1Z5"
+                value={gstNumber}
+                onChange={(e) => setGstNumber(e.target.value)}
+                className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="address" className="text-muted-foreground">
+                Address
+              </Label>
+              <Input
+                id="address"
+                type="text"
+                placeholder="Street address"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                required
+                className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="city" className="text-muted-foreground">
+                  City
+                </Label>
+                <Input
+                  id="city"
+                  type="text"
+                  placeholder="City"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  required
+                  className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="state" className="text-muted-foreground">
+                  State
+                </Label>
+                <Input
+                  id="state"
+                  type="text"
+                  placeholder="State"
+                  value={state}
+                  onChange={(e) => setState(e.target.value)}
+                  required
+                  className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="postalCode" className="text-muted-foreground">
+                  Postal code
+                </Label>
+                <Input
+                  id="postalCode"
+                  type="text"
+                  placeholder="600001"
+                  value={postalCode}
+                  onChange={(e) => setPostalCode(e.target.value)}
+                  required
+                  className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="country" className="text-muted-foreground">
+                  Country
+                </Label>
+                <Input
+                  id="country"
+                  type="text"
+                  placeholder="India"
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  required
+                  className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
+                />
+              </div>
             </div>
 
             <Button

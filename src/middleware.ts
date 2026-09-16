@@ -169,8 +169,8 @@ export async function middleware(request: NextRequest) {
       const allowed =
         (profile?.account_status === 'active' &&
           subscription?.payment_status === 'paid' &&
-          ['active', 'expiring_soon'].includes(subscription.status) &&
-          new Date(subscription.expiry_date) > new Date()) ||
+          ['active', 'trial', 'expiring_soon'].includes(subscription.status) &&
+          (!subscription.expiry_date || new Date(subscription.expiry_date) > new Date())) ||
         Boolean(account?.pending_payment_access && pendingPayment);
       if (!allowed) {
         const url = request.nextUrl.clone();
