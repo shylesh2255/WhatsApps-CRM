@@ -25,11 +25,15 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  // Creating an automation is a write — the RLS automations_insert policy
-  // requires `agent`, but this route inserts via the service-role client
-  // which bypasses RLS, so the role must be enforced here.
+  // Creating an automation *definition* is allowed at any role, including
+  // viewer — by explicit product decision, unlike the rest of the write
+  // surface (contacts/deals/broadcasts stay agent+). This route inserts
+  // via the service-role client which bypasses RLS, so the role must be
+  // enforced here; the matching automations_insert RLS policy was loosened
+  // to match (migration 069). Note: *running* an automation (engine route)
+  // still sends real outbound WhatsApp messages and stays agent+.
   try {
-    await requireRole('agent')
+    await requireRole('viewer')
   } catch (err) {
     return toErrorResponse(err)
   }

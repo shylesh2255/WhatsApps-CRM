@@ -49,11 +49,10 @@ export async function PATCH(
 ) {
   const { id } = await params
 
-  // Editing an automation is a write — the RLS automations_update policy
-  // requires `agent`, but this route mutates via the service-role client
-  // which bypasses RLS, so enforce the role here.
+  // Editing an automation definition is allowed at any role — see the
+  // POST handler in ../route.ts for why viewer is intentional here.
   try {
-    await requireRole('agent')
+    await requireRole('viewer')
   } catch (err) {
     return toErrorResponse(err)
   }
@@ -137,10 +136,10 @@ export async function DELETE(
 ) {
   const { id } = await params
 
-  // Deleting an automation is a write — enforce `agent` (the service-role
-  // client below bypasses the agent-gated automations_delete RLS).
+  // Deleting an automation definition is allowed at any role — see the
+  // POST handler in ../route.ts for why viewer is intentional here.
   try {
-    await requireRole('agent')
+    await requireRole('viewer')
   } catch (err) {
     return toErrorResponse(err)
   }

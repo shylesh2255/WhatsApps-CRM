@@ -9,11 +9,10 @@ export async function POST(
 ) {
   const { id } = await params
 
-  // Duplicating creates a new automation row — a write. Enforce `agent`
-  // (the service-role client below bypasses the agent-gated
-  // automations_insert RLS).
+  // Duplicating creates a new automation definition — allowed at any
+  // role, same as create/edit/delete. See src/app/api/automations/route.ts.
   try {
-    await requireRole('agent')
+    await requireRole('viewer')
   } catch (err) {
     return toErrorResponse(err)
   }

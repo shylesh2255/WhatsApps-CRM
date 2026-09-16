@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { PLATFORM_OWNER_USER_ID } from '@/lib/auth/platform-owner';
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -46,16 +47,6 @@ export async function middleware(request: NextRequest) {
     });
     return response;
   };
-
-  // Accounts are provisioned by admins. The old signup screen remains in
-  // the tree for compatibility with existing invite links, but is not a
-  // public account-creation route anymore.
-  if (request.nextUrl.pathname === '/signup') {
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    url.search = '';
-    return withRefreshedCookies(NextResponse.redirect(url));
-  }
 
   // Auth pages - redirect to dashboard if already logged in.
   // Exception: when an invite token is in the query string we
@@ -150,11 +141,15 @@ export async function middleware(request: NextRequest) {
       .select('account_id, account_role, account_status, must_change_password')
       .eq('user_id', user.id)
       .maybeSingle();
-    if (
-      (profile?.account_role === 'owner' ||
-        profile?.account_role === 'admin') &&
-      request.nextUrl.pathname === '/billing'
-    ) {
+    // The platform owner manages every *other* customer's billing from
+    // the admin console, not their own /billing page — and their own
+    // account is exempt from the trial/subscription lock below. This
+    // must be keyed by the immutable platform-owner user id, NOT
+    // account_role: since self-signup grants every new customer 'owner'
+    // of their own account, an account_role check here would exempt
+    // every customer from ever being locked out after their trial.
+    const isPlatformOwner = user.id === PLATFORM_OWNER_USER_ID;
+    if (isPlatformOwner && request.nextUrl.pathname === '/billing') {
       const url = request.nextUrl.clone();
       url.pathname = '/dashboard';
       return withRefreshedCookies(NextResponse.redirect(url));
@@ -164,11 +159,7 @@ export async function middleware(request: NextRequest) {
       url.pathname = '/change-password';
       return withRefreshedCookies(NextResponse.redirect(url));
     }
-    if (
-      profile?.account_role !== 'owner' &&
-      profile?.account_role !== 'admin' &&
-      request.nextUrl.pathname !== '/billing'
-    ) {
+    if (!isPlatformOwner && request.nextUrl.pathname !== '/billing') {
       const [
         { data: subscription },
         { data: account },

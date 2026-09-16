@@ -14,6 +14,15 @@ let refreshedCookies: Array<{
   value: string;
   options: Record<string, unknown>;
 }> = [];
+let mockSubscription: {
+  status: string;
+  payment_status: string;
+  expiry_date: string | null;
+} = {
+  status: "active",
+  payment_status: "paid",
+  expiry_date: new Date(Date.now() + 30 * 86400000).toISOString(),
+};
 
 vi.mock("@supabase/ssr", () => ({
   createServerClient: (
@@ -34,16 +43,23 @@ vi.mock("@supabase/ssr", () => ({
       return query;
     };
 
-    const from = (table: string) => createQuery(
-      table === "profiles"
-        ? {
-            account_id: "account-1",
-            account_role: "admin",
-            account_status: "active",
-            must_change_password: false,
-          }
-        : null,
-    );
+    const from = (table: string) => {
+      if (table === "profiles") {
+        return createQuery({
+          account_id: "account-1",
+          account_role: "owner",
+          account_status: "active",
+          must_change_password: false,
+        });
+      }
+      // The mock user here is a regular customer (not the platform
+      // owner), so the subscription-expiry gate in middleware.ts
+      // actually runs against this.
+      if (table === "customer_subscriptions") {
+        return createQuery(mockSubscription);
+      }
+      return createQuery(null);
+    };
 
     return {
       auth: {
@@ -75,6 +91,11 @@ beforeEach(() => {
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
   mockUser = null;
   refreshedCookies = [];
+  mockSubscription = {
+    status: "active",
+    payment_status: "paid",
+    expiry_date: new Date(Date.now() + 30 * 86400000).toISOString(),
+  };
 });
 
 afterEach(() => vi.clearAllMocks());
@@ -141,5 +162,24 @@ describe("middleware — refreshed auth cookies survive redirects", () => {
     // No redirect — the normal NextResponse.next() already carries cookies.
     expect(res.headers.get("location")).toBeNull();
     expect(res.cookies.get(ROTATED.name)?.value).toBe(ROTATED.value);
+  });
+
+  it("locks out a self-signed-up customer whose trial expired, even though they're 'owner' of their own account", async () => {
+    // Self-signup grants every new customer 'owner' of their own account
+    // (see supabase/migrations/070_self_signup_owner_role.sql) — this
+    // must NOT be confused with the platform owner (a specific, immutable
+    // user id), or every expired trial would silently keep working.
+    mockUser = { id: "some-customer-user-id" };
+    mockSubscription = {
+      status: "trial",
+      payment_status: "paid",
+      expiry_date: new Date(Date.now() - 86400000).toISOString(), // expired yesterday
+    };
+    refreshedCookies = [];
+
+    const res = await middleware(new NextRequest("https://app.test/dashboard"));
+
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/subscription-expired");
   });
 });

@@ -161,7 +161,17 @@ function LoginPageInner() {
           </form>
 
           <p className="mt-6 text-center text-sm text-muted-foreground">
-            Contact your administrator to receive an account.
+            Don&apos;t have an account?{" "}
+            <Link
+              href={
+                inviteToken
+                  ? `/signup?invite=${encodeURIComponent(inviteToken)}`
+                  : "/signup"
+              }
+              className="text-primary hover:text-primary/80"
+            >
+              Sign up
+            </Link>
           </p>
         </CardContent>
       </Card>
