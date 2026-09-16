@@ -82,11 +82,25 @@ export function canEditSettings(role: AccountRole): boolean {
 
 /**
  * Owner / admin / agent: write operational data — send messages,
- * create contacts, move deals, run broadcasts, edit automations.
- * Viewers are read-only.
+ * create contacts, move deals, run broadcasts, run/trigger an
+ * automation (sends real messages). Viewers are read-only for these.
  */
 export function canSendMessages(role: AccountRole): boolean {
   return hasMinRole(role, "agent");
+}
+
+/**
+ * Every role, including viewer: create/edit/delete automation
+ * *definitions*. Explicit product decision, unlike the rest of the
+ * write surface above — building/editing an automation doesn't send
+ * anything by itself (see canSendMessages for the actual send gate,
+ * used by the engine's manual-trigger route). Kept as its own named
+ * predicate rather than inlining `true` at call sites so the
+ * decision is discoverable and grep-able like every other capability.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for signature parity with every other capability predicate in this file
+export function canManageAutomations(role: AccountRole): boolean {
+  return true;
 }
 
 /**
