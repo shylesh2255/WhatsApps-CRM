@@ -39,10 +39,10 @@ const methods = [
   'Other',
 ];
 const plans = [
-  { name: 'Plan 1', label: 'Unlimited chats - ₹0' },
-  { name: 'Plan 2', label: '1,000 chats - ₹150' },
-  { name: 'Plan 3', label: '5,000 chats - ₹350' },
-  { name: 'Plan 4', label: 'Unlimited chats - ₹500' },
+  { name: 'Free', label: 'Unlimited chats - ₹0' },
+  { name: 'Basic', label: '1,000 chats - ₹150/month' },
+  { name: 'Professional', label: '5,000 chats - ₹350/month' },
+  { name: 'Unlimited', label: 'Unlimited chats - ₹500/month' },
 ];
 
 export default function CustomersPage() {
@@ -315,11 +315,11 @@ export default function CustomersPage() {
             set('planName', e.target.value);
             set(
               'amount',
-              plan?.name === 'Plan 1'
+              plan?.name === 'Free'
                 ? '0'
-                : plan?.name === 'Plan 2'
+                : plan?.name === 'Basic'
                   ? '150'
-                  : plan?.name === 'Plan 3'
+                  : plan?.name === 'Professional'
                     ? '350'
                     : '500'
             );

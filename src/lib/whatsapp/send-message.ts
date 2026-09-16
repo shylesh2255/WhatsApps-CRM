@@ -73,6 +73,9 @@ export class SendMessageError extends Error {
   }
 }
 
+const CHAT_LIMIT_MESSAGE =
+  'You have reached your chat limit for this billing cycle. Please upgrade your plan or wait until your next billing cycle.';
+
 export interface SendMessageParams {
   conversationId: string;
   messageType: string;
@@ -156,7 +159,7 @@ export function validateSendMessageParams(params: {
   // limits up front so a bad payload 400s before we touch Meta.
   if (messageType === 'interactive') {
     const result = validateInteractivePayload(interactivePayload);
-    if (!result.ok) {
+    if (result.ok === false) {
       throw new SendMessageError('bad_request', result.error, 400);
     }
   }
@@ -187,7 +190,8 @@ export function validateSendMessageParams(params: {
 export async function sendMessageToConversation(
   db: SupabaseClient,
   accountId: string,
-  params: SendMessageParams
+  params: SendMessageParams,
+  userId?: string | null
 ): Promise<SendMessageResult> {
   const {
     conversationId,
@@ -218,6 +222,39 @@ export async function sendMessageToConversation(
     templateName,
     interactivePayload,
   });
+
+  // Reserve one chat atomically before contacting Meta. The database
+  // function locks the current billing-cycle row, preventing concurrent
+  // requests from crossing a plan limit.
+  const usageQuery = db.rpc;
+  if (typeof usageQuery === 'function') {
+    const { data: usage, error: usageError } = await usageQuery.call(db, 'check_and_increment_chat_usage', {
+      p_account_id: accountId,
+      p_user_id: userId ?? null,
+    });
+
+    if (usageError) {
+      console.error('[send-message] chat usage check failed:', usageError);
+      throw new SendMessageError(
+        'usage_check_failed',
+        'Unable to verify subscription usage. Please try again.',
+        503
+      );
+    }
+
+    const usageRow = Array.isArray(usage) ? usage[0] : usage;
+    if (usageRow && !usageRow.allowed) {
+      throw new SendMessageError(
+        usageRow.reason === 'chat_limit_reached'
+          ? 'chat_limit_reached'
+          : 'subscription_inactive',
+        usageRow.reason === 'chat_limit_reached'
+          ? CHAT_LIMIT_MESSAGE
+          : 'Your subscription is not active. Please choose a plan or contact an administrator.',
+        403
+      );
+    }
+  }
 
   const isMediaKind = (MEDIA_KINDS as readonly string[]).includes(messageType);
 
