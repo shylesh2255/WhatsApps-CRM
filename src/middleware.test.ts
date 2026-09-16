@@ -54,6 +54,13 @@ vi.mock("@supabase/ssr", () => ({
           if (refreshedCookies.length) opts.cookies.setAll(refreshedCookies);
           return { data: { user: mockUser } };
         },
+        mfa: {
+          // No factor enrolled in these fixtures — current/next level match,
+          // so the MFA gate in middleware.ts is a no-op for every test here.
+          getAuthenticatorAssuranceLevel: async () => ({
+            data: { currentLevel: "aal1", nextLevel: "aal1" },
+          }),
+        },
       },
       from,
     };

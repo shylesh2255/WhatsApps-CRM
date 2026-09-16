@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server';
-import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { requirePlatformOwner, toErrorResponse } from '@/lib/auth/account';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
 
 export async function GET() {
   try {
-    const ctx = await requireRole('admin');
+    await requirePlatformOwner();
     const admin = supabaseAdmin();
     const { data: subscriptions, error } = await admin
       .from('customer_subscriptions')
       .select(
-        'id, account_id, user_id, plan_name, start_date, expiry_date, amount, currency, chat_limit, duration_days, payment_status, status, auto_renew'
+        'id, account_id, user_id, plan_name, start_date, expiry_date, amount, currency, chat_limit, duration_days, payment_status, status, auto_renew, autopay_enabled, autopay_status'
       )
       .order('expiry_date', { ascending: true });
     if (error) throw error;
@@ -74,7 +74,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const ctx = await requireRole('admin');
+    const ctx = await requirePlatformOwner();
     const admin = supabaseAdmin();
     const body = (await request.json().catch(() => null)) as {
       userId?: unknown;
@@ -157,7 +157,7 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const ctx = await requireRole('admin');
+    const ctx = await requirePlatformOwner();
     const admin = supabaseAdmin();
     const body = (await request.json().catch(() => null)) as {
       subscriptionId?: unknown;

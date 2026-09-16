@@ -85,6 +85,28 @@ export async function middleware(request: NextRequest) {
     return withRefreshedCookies(NextResponse.redirect(url));
   }
 
+  // MFA gate: a password-only sign-in leaves the session at AAL1 even
+  // when the user has a TOTP factor enrolled — Supabase issues the
+  // session cookie before the second factor is checked. Block protected
+  // routes until the session reaches AAL2, same enforcement point as
+  // the must_change_password / subscription gates below.
+  if (user) {
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    const mfaSatisfied = !aal || aal.currentLevel === aal.nextLevel;
+    if (!mfaSatisfied && request.nextUrl.pathname !== '/mfa-challenge') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/mfa-challenge';
+      url.search = '';
+      return withRefreshedCookies(NextResponse.redirect(url));
+    }
+    if (mfaSatisfied && request.nextUrl.pathname === '/mfa-challenge') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/dashboard';
+      url.search = '';
+      return withRefreshedCookies(NextResponse.redirect(url));
+    }
+  }
+
   // Protected pages - redirect to login if not authenticated
   const protectedPaths = [
     '/dashboard',
@@ -100,6 +122,12 @@ export async function middleware(request: NextRequest) {
     '/branches',
     '/tasks',
     '/billing',
+    '/leads',
+    '/companies',
+    '/quotations',
+    '/invoices',
+    '/calendar',
+    '/mfa-challenge',
   ];
   if (
     !user &&

@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  requireRole: vi.fn(),
+  requirePlatformOwner: vi.fn(),
   deleteUser: vi.fn(),
   insert: vi.fn(),
   from: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/account', () => ({
-  requireRole: mocks.requireRole,
+  requirePlatformOwner: mocks.requirePlatformOwner,
   toErrorResponse: vi.fn((error: unknown) => {
     const message = error instanceof Error ? error.message : 'auth failed';
     return Response.json({ error: message }, { status: 403 });
@@ -39,34 +39,34 @@ const ctx = {
   role: 'admin',
 };
 
+function mockTarget(target: { user_id: string; account_role: string; customer_code: string } | null) {
+  mocks.from.mockImplementation((table: string) => {
+    if (table === 'profiles') {
+      return {
+        select: () => ({
+          eq: () => ({
+            maybeSingle: async () => ({ data: target }),
+          }),
+        }),
+      };
+    }
+    return { insert: mocks.insert };
+  });
+}
+
 beforeEach(() => {
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key';
-  mocks.requireRole.mockReset();
+  mocks.requirePlatformOwner.mockReset();
   mocks.deleteUser.mockReset();
   mocks.from.mockReset();
-  mocks.requireRole.mockResolvedValue(ctx);
-  mocks.from.mockReturnValue({
-    insert: mocks.insert,
-    select: vi.fn(),
-    update: vi.fn(),
-    eq: vi.fn(),
-    maybeSingle: vi.fn(),
-  });
+  mocks.insert.mockReset();
+  mocks.requirePlatformOwner.mockResolvedValue(ctx);
+  mocks.insert.mockResolvedValue({ error: null });
 });
 
 describe('/api/admin/customers DELETE', () => {
   it('rejects deleting the protected customer code CUS-0147E2A1', async () => {
-    ctx.supabase.from = vi.fn(() => ({
-      select: () => ({
-        eq: () => ({
-          eq: () => ({
-            maybeSingle: async () => ({
-              data: { user_id: 'user-2', account_role: 'agent', customer_code: 'CUS-0147E2A1' },
-            }),
-          }),
-        }),
-      }),
-    }));
+    mockTarget({ user_id: 'user-2', account_role: 'agent', customer_code: 'CUS-0147E2A1' });
 
     const response = await DELETE(request({ userId: 'user-2' }));
 
@@ -75,22 +75,21 @@ describe('/api/admin/customers DELETE', () => {
   });
 
   it('allows deleting other customers', async () => {
-    ctx.supabase.from = vi.fn(() => ({
-      select: () => ({
-        eq: () => ({
-          eq: () => ({
-            maybeSingle: async () => ({
-              data: { user_id: 'user-3', account_role: 'agent', customer_code: 'CUS-9999ZZZ' },
-            }),
-          }),
-        }),
-      }),
-    }));
+    mockTarget({ user_id: 'user-3', account_role: 'agent', customer_code: 'CUS-9999ZZZ' });
     mocks.deleteUser.mockResolvedValue({ error: null });
 
     const response = await DELETE(request({ userId: 'user-3' }));
 
     expect(response.status).toBe(200);
     expect(mocks.deleteUser).toHaveBeenCalledWith('user-3');
+  });
+
+  it('rejects a caller who is not the platform owner', async () => {
+    mocks.requirePlatformOwner.mockRejectedValue(new Error('This action is restricted to the platform administrator'));
+
+    const response = await DELETE(request({ userId: 'user-3' }));
+
+    expect(response.status).toBe(403);
+    expect(mocks.deleteUser).not.toHaveBeenCalled();
   });
 });

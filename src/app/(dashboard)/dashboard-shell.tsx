@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { AccountAccessAlert } from "@/components/layout/account-access-alert";
 import { PresenceHeartbeat } from "@/components/presence/presence-heartbeat";
+import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
 
 // Auth-gated dashboard shell. Extracted from the layout so the layout
 // itself can stay a server component and export metadata (noindex) —
@@ -41,20 +42,31 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   if (!user) return null;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      {/* Reports this tab's online/away presence once we know a user is
-          signed in. Headless — renders nothing. */}
-      <PresenceHeartbeat />
-      <Sidebar open={sidebarOpen} onClose={closeSidebar} />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Header onOpenSidebar={() => setSidebarOpen(true)} />
-        {/* Thinner horizontal padding on mobile so cards have room to breathe. */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-          {/* Above every page: writes are being rejected and here's why.
-              Renders nothing unless the account/role failed to resolve. */}
-          <AccountAccessAlert />
-          {children}
-        </main>
+    <div className="flex h-screen flex-col overflow-hidden bg-background print:h-auto print:overflow-visible">
+      <ImpersonationBanner />
+      <div className="flex flex-1 overflow-hidden print:overflow-visible">
+        {/* Reports this tab's online/away presence once we know a user is
+            signed in. Headless — renders nothing. */}
+        <PresenceHeartbeat />
+        <div className="print:hidden">
+          <Sidebar open={sidebarOpen} onClose={closeSidebar} />
+        </div>
+        <div className="flex flex-1 flex-col overflow-hidden print:overflow-visible">
+          <div className="print:hidden">
+            <Header onOpenSidebar={() => setSidebarOpen(true)} />
+          </div>
+          {/* Thinner horizontal padding on mobile so cards have room to breathe.
+              Print: full-bleed, no scroll container — pages like the
+              quotation/invoice print view rely on this to lay out cleanly. */}
+          <main className="flex-1 overflow-y-auto p-4 sm:p-6 print:overflow-visible print:p-0">
+            {/* Above every page: writes are being rejected and here's why.
+                Renders nothing unless the account/role failed to resolve. */}
+            <div className="print:hidden">
+              <AccountAccessAlert />
+            </div>
+            {children}
+          </main>
+        </div>
       </div>
     </div>
   );

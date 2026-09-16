@@ -8,10 +8,14 @@ import { useAuth } from '@/hooks/use-auth';
 import { useTotalUnread } from '@/hooks/use-total-unread';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import {
+  BarChart3,
   Bell,
+  Building2,
+  CalendarDays,
   ClipboardList,
   Bot,
   Crown,
+  FileText,
   GitBranch,
   Headphones,
   LayoutDashboard,
@@ -19,8 +23,10 @@ import {
   MessageSquare,
   Package,
   Radio,
+  Receipt,
   Settings,
   Shield,
+  Sparkles,
   User,
   UserCog,
   Users,
@@ -31,6 +37,7 @@ import {
   Zap,
 } from 'lucide-react';
 import type { AccountRole } from '@/lib/auth/roles';
+import { PLATFORM_OWNER_EMAIL } from '@/lib/auth/platform-owner';
 
 // Per-role chip metadata used in the sidebar's account strip + the
 // Members tab roster. Keeping this near both consumers in a single
@@ -89,12 +96,17 @@ const navItems: NavItem[] = [
   { href: '/dashboard', labelKey: 'dashboard', icon: LayoutDashboard },
   { href: '/inbox', labelKey: 'inbox', icon: MessageSquare },
   { href: '/notifications', labelKey: 'notifications', icon: Bell },
+  { href: '/leads', labelKey: 'leads', icon: Sparkles },
   { href: '/contacts', labelKey: 'contacts', icon: Users },
+  { href: '/companies', labelKey: 'companies', icon: Building2 },
   { href: '/branches', labelKey: 'branches', icon: GitBranch },
   { href: '/pipelines', labelKey: 'pipelines', icon: GitBranch },
   { href: '/broadcasts', labelKey: 'broadcasts', icon: Radio },
   { href: '/products', labelKey: 'products', icon: Package },
+  { href: '/quotations', labelKey: 'quotations', icon: FileText },
+  { href: '/invoices', labelKey: 'invoices', icon: Receipt },
   { href: '/tasks', labelKey: 'tasks', icon: ClipboardList },
+  { href: '/calendar', labelKey: 'calendar', icon: CalendarDays },
   { href: '/automations', labelKey: 'automations', icon: Zap },
   { href: '/flows', labelKey: 'flows', icon: Workflow, beta: true },
   { href: '/agents', labelKey: 'aiAgents', icon: Bot },
@@ -119,6 +131,11 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
     const fallbackLabels: Record<string, string> = {
       branches: 'Branches',
       tasks: 'Tasks',
+      companies: 'Companies',
+      leads: 'Leads',
+      quotations: 'Quotations',
+      invoices: 'Invoices',
+      calendar: 'Calendar',
     };
     return fallbackLabels[labelKey] ?? labelKey;
   };
@@ -126,14 +143,21 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const { profile, profileLoading, account, accountRole, signOut } = useAuth();
   const totalUnread = useTotalUnread();
   const unreadNotifications = useUnreadNotifications();
-  const adminNavItems =
-    accountRole === 'owner' || accountRole === 'admin'
-      ? [
-          { href: '/admin', label: 'Admin', icon: Shield },
-          { href: '/subscriptions', label: 'Subscriptions', icon: CreditCard },
-          { href: '/admin/support', label: 'Support', icon: Headphones },
-        ]
-      : [];
+  // These four routes are the platform-wide Super Admin surface (every
+  // tenant's customers/subscriptions/payments/support), not a per-tenant
+  // feature — so they're gated to the one designated platform owner, not
+  // "any owner/admin of any account." This is UX only: the real
+  // enforcement is `requirePlatformOwner()` on the API routes themselves,
+  // which anyone else hitting these pages would 403 against anyway.
+  const isPlatformOwner = profile?.email?.toLowerCase() === PLATFORM_OWNER_EMAIL;
+  const adminNavItems = isPlatformOwner
+    ? [
+        { href: '/admin', label: 'Admin', icon: Shield },
+        { href: '/subscriptions', label: 'Subscriptions', icon: CreditCard },
+        { href: '/admin/support', label: 'Support', icon: Headphones },
+        { href: '/admin/reports', label: 'Reports', icon: BarChart3 },
+      ]
+    : [];
   // Only surface the account-name strip when it actually carries
   // information. A solo user's personal account is named after them
   // (the 017 signup trigger seeds it from `full_name`), so showing it

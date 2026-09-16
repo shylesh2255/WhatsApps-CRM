@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { requirePlatformOwner, toErrorResponse } from '@/lib/auth/account';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
 
 export async function GET(request: Request) {
   try {
-    const ctx = await requireRole('admin');
+    await requirePlatformOwner();
     const admin = supabaseAdmin();
     const params = new URL(request.url).searchParams;
     const { data, error } = await admin
@@ -62,7 +62,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const ctx = await requireRole('admin');
+    await requirePlatformOwner();
     const admin = supabaseAdmin();
     const body = (await request.json().catch(() => null)) as {
       subscriptionId?: unknown;
@@ -126,7 +126,7 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const ctx = await requireRole('admin');
+    const ctx = await requirePlatformOwner();
     const admin = supabaseAdmin();
     const body = (await request.json().catch(() => null)) as {
       paymentId?: unknown;

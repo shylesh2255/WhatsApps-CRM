@@ -5,6 +5,9 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/use-auth';
+import { usePlatformOwnerGuard } from '@/hooks/use-platform-owner-guard';
+import { createClient } from '@/lib/supabase/client';
+import { stashReturnSession, setActiveImpersonation } from '@/lib/impersonation/storage';
 
 function getTemporaryPasswordExpiry() {
   return Date.now() + 10 * 60 * 1000;
@@ -35,7 +38,6 @@ const methods = [
   'Credit Card',
   'Debit Card',
   'Razorpay',
-  'Stripe',
   'Other',
 ];
 const plans = [
@@ -46,6 +48,7 @@ const plans = [
 ];
 
 export default function CustomersPage() {
+  usePlatformOwnerGuard();
   const { isOwner } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [form, setForm] = useState({
@@ -78,6 +81,7 @@ export default function CustomersPage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [temporaryPasswords, setTemporaryPasswords] = useState<Record<string, { password: string; expiresAt: number }>>({});
   const [now, setNow] = useState(() => Date.now());
+  const [impersonatingId, setImpersonatingId] = useState<string | null>(null);
   const set = (key: string, value: string | boolean) =>
     setForm((current) => ({ ...current, [key]: value }));
   async function load() {
@@ -208,6 +212,44 @@ export default function CustomersPage() {
             : 'Customer status updated successfully.'
       );
       void load();
+    }
+  }
+
+  async function handleImpersonate(userId: string, displayName: string) {
+    setError(null);
+    if (!window.confirm(`Log in as ${displayName}? You'll see the app exactly as they do until you exit impersonation.`)) return;
+    setImpersonatingId(userId);
+    try {
+      const response = await fetch(`/api/admin/customers/${userId}/impersonate`, { method: 'POST' });
+      const result = await response.json();
+      if (!response.ok) {
+        setError(result.error ?? 'Unable to start impersonation');
+        return;
+      }
+      const supabase = createClient();
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData.session) {
+        stashReturnSession({
+          access_token: sessionData.session.access_token,
+          refresh_token: sessionData.session.refresh_token,
+        });
+      }
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        token_hash: result.tokenHash,
+        type: 'magiclink',
+      });
+      if (verifyError) {
+        setError(verifyError.message || 'Unable to start impersonation session');
+        return;
+      }
+      setActiveImpersonation({
+        targetUserId: userId,
+        targetName: result.targetName ?? displayName,
+        startedAt: new Date().toISOString(),
+      });
+      window.location.href = '/dashboard';
+    } finally {
+      setImpersonatingId(null);
     }
   }
   return (
@@ -496,6 +538,19 @@ export default function CustomersPage() {
                     }
                   >
                     Reset password
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={impersonatingId === customer.user_id}
+                    onClick={() =>
+                      void handleImpersonate(
+                        customer.user_id,
+                        customer.full_name || customer.email || 'this customer'
+                      )
+                    }
+                  >
+                    {impersonatingId === customer.user_id ? 'Logging in...' : 'Login as'}
                   </Button>
                   {temporaryPasswords[customer.user_id] && (
                     <div className="mt-2 max-w-xs rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-200">

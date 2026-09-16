@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { usePlatformOwnerGuard } from '@/hooks/use-platform-owner-guard';
 
 function getCurrentTime() {
   return Date.now();
@@ -18,6 +19,8 @@ type Subscription = {
   status: string;
   chat_limit?: number | null;
   auto_renew?: boolean;
+  autopay_enabled?: boolean;
+  autopay_status?: string | null;
   profiles?: { full_name?: string; email?: string };
   latest_payment?: {
     id: string;
@@ -28,6 +31,7 @@ type Subscription = {
   usage?: { period_start: string; period_end: string | null; whatsapp_messages_count: number } | null;
 };
 export default function SubscriptionsPage() {
+  usePlatformOwnerGuard();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [message, setMessage] = useState('');
   async function load() {
@@ -186,7 +190,9 @@ export default function SubscriptionsPage() {
                       : '-'}
                   </td>
                   <td className="text-muted-foreground p-3">
-                    {subscription.auto_renew ? 'Yes' : 'No'}
+                    {subscription.autopay_enabled
+                      ? `Autopay: ${subscription.autopay_status ?? 'active'}`
+                      : 'Manual'}
                   </td>
                   <td className="flex flex-wrap gap-2 p-3">
                     <Button variant="outline" size="sm" onClick={() => void manageSubscription(subscription, 'extend')}>Extend</Button>

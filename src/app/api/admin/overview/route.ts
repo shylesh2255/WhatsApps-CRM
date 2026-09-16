@@ -1,14 +1,19 @@
 import { NextResponse } from 'next/server';
-import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { requirePlatformOwner, toErrorResponse } from '@/lib/auth/account';
+import { supabaseAdmin } from '@/lib/flows/admin-client';
 
 export async function GET() {
   try {
-    const ctx = await requireRole('admin');
+    // Platform-wide metrics across every tenant — restricted to the
+    // platform owner (see requirePlatformOwner for why account_role
+    // alone isn't enough here).
+    const ctx = await requirePlatformOwner();
+    const admin = supabaseAdmin();
     const [{ data: customers }, { data: subscriptions }, { data: payments }, { data: activity }] = await Promise.all([
-      ctx.supabase.from('profiles').select('user_id, account_status, created_at').eq('account_id', ctx.accountId),
-      ctx.supabase.from('customer_subscriptions').select('user_id, status, payment_status, expiry_date, amount, auto_renew').eq('account_id', ctx.accountId),
-      ctx.supabase.from('customer_payments').select('status, amount, payment_date, due_date').eq('account_id', ctx.accountId),
-      ctx.supabase.from('audit_logs').select('action, created_at, details').eq('account_id', ctx.accountId).order('created_at', { ascending: false }).limit(10),
+      admin.from('profiles').select('user_id, account_status, created_at').neq('user_id', ctx.userId),
+      admin.from('customer_subscriptions').select('user_id, status, payment_status, expiry_date, amount, auto_renew'),
+      admin.from('customer_payments').select('status, amount, payment_date, due_date'),
+      admin.from('audit_logs').select('action, created_at, details').order('created_at', { ascending: false }).limit(10),
     ]);
     const now = Date.now(); const soon = now + 7 * 86400000; const month = new Date(); month.setDate(1); month.setHours(0, 0, 0, 0);
     return NextResponse.json({ metrics: {

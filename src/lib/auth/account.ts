@@ -30,6 +30,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/server";
 import { hasMinRole, isAccountRole, type AccountRole } from "./roles";
+import { PLATFORM_OWNER_USER_ID } from "./platform-owner";
 
 // ------------------------------------------------------------
 // Errors
@@ -185,6 +186,27 @@ export async function requireRole(min: AccountRole): Promise<AccountContext> {
     throw new ForbiddenError(
       `This action requires the '${min}' role or higher`,
     );
+  }
+  return ctx;
+}
+
+/**
+ * Gate for the Super-Admin surface — routes that manage data across
+ * *every* tenant (customers, subscriptions, payments, support), not just
+ * the caller's own account. `requireRole('admin')` is NOT enough here:
+ * `account_role` is per-tenant, and this app lets the platform owner
+ * grant 'owner'/'admin' to any customer within their own account (see
+ * POST /api/admin/customers), so any tenant's own admin would otherwise
+ * pass a plain role check and reach cross-tenant data.
+ *
+ * Throws `ForbiddenError` for anyone other than the one designated
+ * platform owner (see `./platform-owner`), even if they hold 'owner' or
+ * 'admin' within their own tenant.
+ */
+export async function requirePlatformOwner(): Promise<AccountContext> {
+  const ctx = await getCurrentAccount();
+  if (ctx.userId !== PLATFORM_OWNER_USER_ID) {
+    throw new ForbiddenError("This action is restricted to the platform administrator");
   }
   return ctx;
 }

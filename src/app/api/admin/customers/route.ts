@@ -1,8 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import { NextResponse } from 'next/server';
 
-import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { requirePlatformOwner, toErrorResponse } from '@/lib/auth/account';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
+import { isValidEmail, isValidGstNumber, isValidPhone } from '@/lib/validation/format';
 
 function temporaryPassword() {
   return `${randomBytes(9).toString('base64url')}Aa1!`;
@@ -10,7 +11,7 @@ function temporaryPassword() {
 
 export async function GET() {
   try {
-    const ctx = await requireRole('admin');
+    const ctx = await requirePlatformOwner();
     const admin = supabaseAdmin();
     const [{ data: authData, error: authError }, { data: profiles, error: profileError }] = await Promise.all([
       admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
@@ -58,14 +59,18 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const ctx = await requireRole('owner');
+    const ctx = await requirePlatformOwner();
     const body = (await request.json().catch(() => null)) as { email?: unknown; fullName?: unknown; role?: unknown; temporaryPassword?: unknown; phone?: unknown; businessName?: unknown; businessType?: unknown; gstNumber?: unknown; address?: unknown; city?: unknown; state?: unknown; postalCode?: unknown; country?: unknown; planName?: unknown; amount?: unknown; paymentMethod?: unknown; paymentDetails?: unknown; receivedAmount?: unknown; receivedDate?: unknown; autoRenew?: unknown } | null;
     const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
     const fullName = typeof body?.fullName === 'string' ? body.fullName.trim() : '';
     const role = body?.role === 'owner' || body?.role === 'admin' ? body.role : 'viewer';
-    const paymentMethods = ['UPI', 'Bank Transfer', 'Cash', 'Credit Card', 'Debit Card', 'Razorpay', 'Stripe', 'Other'];
+    const paymentMethods = ['UPI', 'Bank Transfer', 'Cash', 'Credit Card', 'Debit Card', 'Razorpay', 'Other'];
     const paymentMethod = typeof body?.paymentMethod === 'string' && paymentMethods.includes(body.paymentMethod) ? body.paymentMethod : null;
-    if (!email || !email.includes('@')) return NextResponse.json({ error: 'A valid email is required' }, { status: 400 });
+    if (!email || !isValidEmail(email)) return NextResponse.json({ error: 'A valid email is required' }, { status: 400 });
+    const phone = typeof body?.phone === 'string' ? body.phone.trim() : '';
+    if (phone && !isValidPhone(phone)) return NextResponse.json({ error: 'Enter a valid phone number' }, { status: 400 });
+    const gstNumber = typeof body?.gstNumber === 'string' ? body.gstNumber.trim() : '';
+    if (gstNumber && !isValidGstNumber(gstNumber)) return NextResponse.json({ error: 'Enter a valid GST number (e.g., 22AAAAA0000A1Z5)' }, { status: 400 });
 
     const password = typeof body?.temporaryPassword === 'string' && body.temporaryPassword.length >= 8
       ? body.temporaryPassword
@@ -86,10 +91,10 @@ export async function POST(request: Request) {
       account_role: role,
       account_status: 'active',
       must_change_password: true,
-      phone: typeof body?.phone === 'string' ? body.phone.trim() : null,
+      phone: phone || null,
       business_name: typeof body?.businessName === 'string' ? body.businessName.trim() : null,
       business_type: typeof body?.businessType === 'string' ? body.businessType.trim() : null,
-      gst_number: typeof body?.gstNumber === 'string' ? body.gstNumber.trim() : null,
+      gst_number: gstNumber || null,
       address: typeof body?.address === 'string' ? body.address.trim() : null,
       city: typeof body?.city === 'string' ? body.city.trim() : null,
       state: typeof body?.state === 'string' ? body.state.trim() : null,
@@ -163,26 +168,29 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const ctx = await requireRole('admin');
+    const ctx = await requirePlatformOwner();
+    const admin = supabaseAdmin();
     const body = (await request.json().catch(() => null)) as { userId?: unknown; accountStatus?: unknown; action?: unknown } | null;
     if (body?.action === 'resetPassword' && typeof body.userId === 'string') {
-      const { data: target } = await ctx.supabase.from('profiles').select('user_id').eq('account_id', ctx.accountId).eq('user_id', body.userId).maybeSingle();
-      if (!target) return NextResponse.json({ error: 'Customer is not in your account' }, { status: 404 });
+      const { data: target } = await admin.from('profiles').select('user_id').eq('user_id', body.userId).maybeSingle();
+      if (!target) return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
       if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY is not configured on the server' }, { status: 500 });
       const password = temporaryPassword();
-      const { error } = await supabaseAdmin().auth.admin.updateUserById(body.userId, { password });
+      const { error } = await admin.auth.admin.updateUserById(body.userId, { password });
       if (error) return NextResponse.json({ error: error.message || 'Unable to reset customer password' }, { status: 400 });
-      const { error: profileError } = await supabaseAdmin().from('profiles').update({ must_change_password: true }).eq('account_id', ctx.accountId).eq('user_id', body.userId);
+      const { error: profileError } = await admin.from('profiles').update({ must_change_password: true }).eq('user_id', body.userId);
       if (profileError) throw profileError;
-      await supabaseAdmin().from('audit_logs').insert({ account_id: ctx.accountId, actor_user_id: ctx.userId, target_user_id: body.userId, action: 'customer_password_reset' });
+      await admin.from('audit_logs').insert({ account_id: ctx.accountId, actor_user_id: ctx.userId, target_user_id: body.userId, action: 'customer_password_reset' });
       return NextResponse.json({ temporaryPassword: password, userId: body.userId }, { headers: { 'Cache-Control': 'no-store' } });
     }
     if (typeof body?.userId !== 'string' || !['active', 'inactive', 'suspended'].includes(String(body.accountStatus))) {
       return NextResponse.json({ error: 'userId and a valid accountStatus are required' }, { status: 400 });
     }
-    const { error } = await ctx.supabase.from('profiles').update({ account_status: body.accountStatus }).eq('account_id', ctx.accountId).eq('user_id', body.userId);
+    const { data: target } = await admin.from('profiles').select('user_id').eq('user_id', body.userId).maybeSingle();
+    if (!target) return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+    const { error } = await admin.from('profiles').update({ account_status: body.accountStatus }).eq('user_id', body.userId);
     if (error) throw error;
-    await ctx.supabase.from('audit_logs').insert({ account_id: ctx.accountId, actor_user_id: ctx.userId, target_user_id: body.userId, action: `customer_${body.accountStatus}` });
+    await admin.from('audit_logs').insert({ account_id: ctx.accountId, actor_user_id: ctx.userId, target_user_id: body.userId, action: `customer_${body.accountStatus}` });
     return NextResponse.json({ success: true });
   } catch (error) {
     return toErrorResponse(error);
@@ -193,7 +201,7 @@ const PROTECTED_CUSTOMER_CODE = 'CUS-0147E2A1';
 
 export async function DELETE(request: Request) {
   try {
-    const ctx = await requireRole('admin');
+    const ctx = await requirePlatformOwner();
     const body = (await request.json().catch(() => null)) as { userId?: unknown } | null;
     if (typeof body?.userId !== 'string') {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 });
@@ -201,13 +209,13 @@ export async function DELETE(request: Request) {
     if (body.userId === ctx.userId) {
       return NextResponse.json({ error: 'You cannot delete your own account' }, { status: 400 });
     }
-    const { data: target } = await ctx.supabase
+    const admin = supabaseAdmin();
+    const { data: target } = await admin
       .from('profiles')
       .select('user_id, account_role, customer_code')
-      .eq('account_id', ctx.accountId)
       .eq('user_id', body.userId)
       .maybeSingle();
-    if (!target) return NextResponse.json({ error: 'Customer is not in your account' }, { status: 404 });
+    if (!target) return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     if (target.account_role === 'owner') {
       return NextResponse.json({ error: 'The account owner cannot be deleted here' }, { status: 400 });
     }
@@ -218,13 +226,13 @@ export async function DELETE(request: Request) {
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY is not configured on the server' }, { status: 500 });
     }
-    await supabaseAdmin().from('audit_logs').insert({
+    await admin.from('audit_logs').insert({
       account_id: ctx.accountId,
       actor_user_id: ctx.userId,
       target_user_id: body.userId,
       action: 'customer_deleted',
     });
-    const { error } = await supabaseAdmin().auth.admin.deleteUser(body.userId);
+    const { error } = await admin.auth.admin.deleteUser(body.userId);
     if (error) return NextResponse.json({ error: error.message || 'Unable to delete customer' }, { status: 400 });
     return NextResponse.json({ success: true });
   } catch (error) {
