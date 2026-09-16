@@ -74,11 +74,11 @@ export default function SubscriptionsPage() {
   ) {
     const paymentId = subscription.latest_payment?.id;
     if (!paymentId) return;
-    const rejectionReason =
-      action === 'reject'
-        ? (window.prompt('Reason for rejection', '') ?? '')
-        : undefined;
-    if (action === 'reject' && !rejectionReason.trim()) return;
+    let rejectionReason: string | undefined;
+    if (action === 'reject') {
+      rejectionReason = window.prompt('Reason for rejection', '') ?? '';
+      if (!rejectionReason.trim()) return;
+    }
     const response = await fetch('/api/admin/payments', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
