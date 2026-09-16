@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Script from 'next/script';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { MySupportTickets } from '@/components/support/my-support-tickets';
 
 function getCurrentTime() {
   return Date.now();
@@ -18,6 +19,8 @@ type Subscription = {
   payment_status: string;
   status: string;
   chat_limit?: number | null;
+  autopay_enabled?: boolean;
+  autopay_status?: string | null;
 } | null;
 type Usage = { period_start: string | null; period_end: string | null; whatsapp_messages_count: number };
 type Payment = {
@@ -38,7 +41,22 @@ type Settings = {
   payment_mobile_number?: string | null;
 };
 type Plan = { id: string; name: string; monthly_price: number; currency: string; chat_limit: number | null };
-type RazorpayCheckout = new (options: { key: string; amount: number; currency: string; name: string; description: string; order_id: string; handler: (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => void }) => { open: () => void };
+type RazorpayCheckout = new (options: {
+  key: string;
+  amount?: number;
+  currency?: string;
+  name: string;
+  description: string;
+  order_id?: string;
+  subscription_id?: string;
+  recurring?: boolean;
+  handler: (response: {
+    razorpay_order_id?: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+    razorpay_subscription_id?: string;
+  }) => void;
+}) => { open: () => void };
 
 declare global {
   interface Window { Razorpay?: RazorpayCheckout; }
@@ -118,6 +136,41 @@ export default function BillingPage() {
     checkout.open();
   }
 
+  async function startAutopay() {
+    setError('');
+    setMessage('');
+    if (!selectedPlan) return setError('Select a plan first');
+    if (!window.Razorpay) return setError('Payment checkout is still loading. Try again in a moment.');
+    const response = await fetch('/api/customer/billing/autopay', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ planId: selectedPlan }) });
+    const result = await response.json();
+    if (!response.ok) return setError(result.error ?? 'Unable to start autopay');
+    const plan = plans.find((p) => p.id === selectedPlan);
+    const checkout = new window.Razorpay({
+      key: result.keyId,
+      name: 'WACRM',
+      description: `${result.plan.name} subscription (autopay)`,
+      subscription_id: result.subscriptionId,
+      recurring: true,
+      handler: async (payment) => {
+        const verify = await fetch('/api/customer/billing/verify-autopay', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            subscriptionId: payment.razorpay_subscription_id,
+            paymentId: payment.razorpay_payment_id,
+            signature: payment.razorpay_signature,
+            amount: result.plan.amount,
+            currency: plan?.currency ?? 'INR',
+          }),
+        });
+        if (!verify.ok) return setError('Payment was received but could not be verified yet. Please contact support.');
+        setMessage('Autopay enabled. Your subscription will renew automatically.');
+        await load();
+      },
+    });
+    checkout.open();
+  }
+
   const amount = Number(subscription?.amount ?? 0);
   const pending = payments.some((payment) => payment.status === 'pending');
   const canSubmit =
@@ -163,6 +216,12 @@ export default function BillingPage() {
           <p><strong>Remaining:</strong> {subscription?.chat_limit == null ? 'Unlimited' : Math.max(0, subscription.chat_limit - usage.whatsapp_messages_count)}</p>
           <p><strong>Cycle:</strong> {usage.period_start ?? 'No expiry'}{usage.period_end ? ` to ${usage.period_end}` : ''}</p>
           <p><strong>Status:</strong> {subscription?.status ?? 'active'}</p>
+          <p>
+            <strong>Autopay:</strong>{' '}
+            {subscription?.autopay_enabled
+              ? `On (${subscription.autopay_status ?? 'active'})`
+              : 'Off — renews manually'}
+          </p>
         </div>
         {subscription?.chat_limit != null && <div className="mt-4"><div className="mb-1 flex justify-between text-xs text-muted-foreground"><span>Chat usage</span><span>{Math.min(100, Math.round((usage.whatsapp_messages_count / subscription.chat_limit) * 100))}%</span></div><div className="bg-muted h-2 overflow-hidden rounded-full"><div className="bg-primary h-full" style={{ width: `${Math.min(100, (usage.whatsapp_messages_count / subscription.chat_limit) * 100)}%` }} /></div></div>}
       </section>
@@ -209,7 +268,13 @@ export default function BillingPage() {
             </button>
           ))}
         </div>
-        <Button type="button" className="mt-4" onClick={() => void startRazorpayPayment()}>Pay securely with Razorpay</Button>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Button type="button" onClick={() => void startRazorpayPayment()}>Pay once with Razorpay</Button>
+          <Button type="button" variant="outline" onClick={() => void startAutopay()}>Enable Autopay (auto-renew)</Button>
+        </div>
+        <p className="text-muted-foreground mt-2 text-xs">
+          Autopay authorizes a recurring mandate (UPI Autopay / card) so your subscription renews automatically each month without you having to pay manually.
+        </p>
       </section>
       }
       {error && <p className="text-sm text-red-400">{error}</p>}
@@ -381,6 +446,7 @@ export default function BillingPage() {
           <textarea name="message" required rows={3} className="border-input bg-background text-foreground w-full rounded-md border px-3 py-2 text-sm" placeholder="Describe your payment issue" />
           <Button type="submit">Contact support</Button>
         </form>
+        <MySupportTickets />
       </section>
     </div>
   );
