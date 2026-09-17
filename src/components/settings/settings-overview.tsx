@@ -203,6 +203,11 @@ export function SettingsOverview({
       subtitle: `${defaultCurrency} — ${currencyLabel}`,
     },
     {
+      section: 'quiet-hours',
+      loading: false,
+      subtitle: 'Pause automated sends during a daily window',
+    },
+    {
       section: 'fields',
       loading: countsLoading,
       subtitle:

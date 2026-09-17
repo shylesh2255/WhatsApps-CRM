@@ -27,6 +27,7 @@ import {
   isRecipientNotAllowedError,
 } from '@/lib/whatsapp/phone-utils';
 import { resolveTemplateRow } from '@/lib/whatsapp/template-body';
+import { isWithinQuietHours } from '@/lib/whatsapp/quiet-hours';
 import type { MessageTemplate } from '@/types';
 import { findOrCreateContact } from '@/lib/api/v1/contacts';
 
@@ -58,12 +59,15 @@ export interface CreateBroadcastParams {
 
 interface PlannedRecipient {
   recipientRowId: string;
+  contactId: string;
   phone: string;
   params: string[];
 }
 
 export interface BroadcastPlan {
   broadcastId: string;
+  /** Tenancy key — needed by deliverBroadcast to check plan usage per send. */
+  accountId: string;
   templateName: string;
   templateLanguage: string;
   phoneNumberId: string;
@@ -226,12 +230,18 @@ export async function createBroadcast(
   const planned: PlannedRecipient[] = createdRows.map(
     (row: { recipient_id: string; contact_id: string }) => {
       const r = byContact.get(row.contact_id)!;
-      return { recipientRowId: row.recipient_id, phone: r.phone, params: r.params };
+      return {
+        recipientRowId: row.recipient_id,
+        contactId: row.contact_id,
+        phone: r.phone,
+        params: r.params,
+      };
     }
   );
 
   return {
     broadcastId,
+    accountId,
     templateName,
     templateLanguage: resolvedTemplate.language,
     phoneNumberId: config.phone_number_id,
@@ -259,7 +269,77 @@ export async function deliverBroadcast(
   db: SupabaseClient,
   plan: BroadcastPlan
 ): Promise<void> {
-  for (const recipient of plan.planned) {
+  // Quiet hours are account-wide and don't change mid-run, so check
+  // once up front. There's no job queue to defer to, so a broadcast
+  // that lands inside quiet hours fails outright with a reason the
+  // admin can retry later via the existing resume feature, rather
+  // than silently sending at 3am.
+  const { data: account } = await db
+    .from('accounts')
+    .select('quiet_hours_enabled, quiet_hours_start, quiet_hours_end, quiet_hours_timezone')
+    .eq('id', plan.accountId)
+    .maybeSingle();
+  if (account && isWithinQuietHours(account)) {
+    await db
+      .from('broadcast_recipients')
+      .update({ status: 'failed', error_message: 'quiet_hours' })
+      .in('id', plan.planned.map((r) => r.recipientRowId));
+    await finalizeBroadcastStatus(db, plan.broadcastId);
+    return;
+  }
+
+  // Batch-fetch opted-out contacts once up front rather than a
+  // per-recipient query — a broadcast can have up to MAX_RECIPIENTS
+  // contacts, and opt-out status doesn't change mid-delivery.
+  const { data: optedOutRows } = await db
+    .from('contacts')
+    .select('id')
+    .in('id', plan.planned.map((r) => r.contactId))
+    .eq('opted_out', true);
+  const optedOutIds = new Set((optedOutRows ?? []).map((r) => r.id as string));
+  if (optedOutIds.size > 0) {
+    const optedOutRecipientIds = plan.planned
+      .filter((r) => optedOutIds.has(r.contactId))
+      .map((r) => r.recipientRowId);
+    await db
+      .from('broadcast_recipients')
+      .update({ status: 'failed', error_message: 'contact_opted_out' })
+      .in('id', optedOutRecipientIds);
+  }
+
+  for (const [index, recipient] of plan.planned.entries()) {
+    if (optedOutIds.has(recipient.contactId)) continue;
+
+    // Reserve one chat against the account's plan before each send —
+    // same RPC the manual-send and automation paths use. p_user_id:
+    // null lets it resolve the account owner (its own fallback); a
+    // broadcast has no single "calling agent" concept.
+    const { data: usage, error: usageErr } = await db.rpc('check_and_increment_chat_usage', {
+      p_account_id: plan.accountId,
+      p_user_id: null,
+    });
+    const usageRow = Array.isArray(usage) ? usage[0] : usage;
+    if (!usageErr && usageRow && !usageRow.allowed) {
+      // Plan limit hit — this and every remaining recipient in the
+      // batch will fail the same check, so stop dispatching rather
+      // than burn one DB round-trip per recipient for a foregone
+      // conclusion, and mark the rest failed in one update.
+      const reason =
+        usageRow.reason === 'chat_limit_reached' ? 'chat_limit_reached' : 'subscription_inactive';
+      await db
+        .from('broadcast_recipients')
+        .update({ status: 'failed', error_message: reason })
+        .eq('id', recipient.recipientRowId);
+      const remainingIds = plan.planned.slice(index + 1).map((r) => r.recipientRowId);
+      if (remainingIds.length > 0) {
+        await db
+          .from('broadcast_recipients')
+          .update({ status: 'failed', error_message: reason })
+          .in('id', remainingIds);
+      }
+      break;
+    }
+
     const variants = phoneVariants(recipient.phone);
     let sentMessageId: string | null = null;
     let lastError: string | null = null;

@@ -1552,8 +1552,10 @@
       "quick-replies": "Quick replies",
       "fields": "Fields & tags",
       "deals": "Deals & currency",
+      "quiet-hours": "Quiet hours",
       "members": "Team members",
       "api": "API keys",
+      "webhooks": "Webhooks",
       "billing": "Billing"
     },
     "groups": {

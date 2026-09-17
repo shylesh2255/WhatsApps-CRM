@@ -16,8 +16,10 @@ import { TemplateManager } from '@/components/settings/template-manager';
 import { QuickRepliesManager } from '@/components/settings/quick-replies-manager';
 import { FieldsAndTagsPanel } from '@/components/settings/fields-and-tags-panel';
 import { DealsSettings } from '@/components/settings/deals-settings';
+import { QuietHoursSettings } from '@/components/settings/quiet-hours-settings';
 import { MembersTab } from '@/components/settings/members-tab';
 import { ApiKeysSettings } from '@/components/settings/api-keys-settings';
+import { WebhooksSettings } from '@/components/settings/webhooks-settings';
 import { BillingPanel } from '@/components/settings/billing-panel';
 import {
   resolveSection,
@@ -83,8 +85,10 @@ function SettingsPageInner() {
     'quick-replies': <QuickRepliesManager />,
     fields: <FieldsAndTagsPanel />,
     deals: <DealsSettings />,
+    'quiet-hours': <QuietHoursSettings />,
     members: <MembersTab />,
     api: <ApiKeysSettings />,
+    webhooks: <WebhooksSettings />,
   };
 
   return (

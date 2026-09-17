@@ -20,6 +20,8 @@ import {
 
 import { createClient } from "@/lib/supabase/client"
 import { useCan } from "@/hooks/use-can"
+import { useAuth } from "@/hooks/use-auth"
+import { hasMinRole } from "@/lib/auth/roles"
 import { useTranslations } from "next-intl"
 import type { Automation } from "@/types"
 import { Button } from "@/components/ui/button"
@@ -61,6 +63,8 @@ const TEMPLATE_ICON: Record<TemplateSlug, typeof Zap> = {
 export default function AutomationsPage() {
   const router = useRouter()
   const canCreate = useCan("manage-automations")
+  const { accountRole } = useAuth()
+  const canReview = !!accountRole && hasMinRole(accountRole, "agent")
   const t = useTranslations("Automations.list")
   const [automations, setAutomations] = useState<Automation[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -105,6 +109,25 @@ export default function AutomationsPage() {
       return
     }
     toast.success(next ? t("toasts.activated") : t("toasts.paused"))
+  }
+
+  async function review(a: Automation, status: "approved" | "rejected") {
+    let rejection_reason: string | undefined
+    if (status === "rejected") {
+      rejection_reason = window.prompt("Reason for rejecting (optional):") ?? undefined
+    }
+    const res = await fetch(`/api/automations/${a.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ approval_status: status, rejection_reason }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      toast.error(body?.error ?? "Failed to update review status")
+      return
+    }
+    toast.success(status === "approved" ? "Automation approved" : "Automation rejected")
+    load()
   }
 
   async function duplicate(a: Automation) {
@@ -219,11 +242,14 @@ export default function AutomationsPage() {
             <AutomationCard
               key={a.id}
               automation={a}
+              canReview={canReview}
               onToggle={(next) => toggleActive(a, next)}
               onEdit={() => router.push(`/automations/${a.id}/edit`)}
               onDuplicate={() => duplicate(a)}
               onLogs={() => router.push(`/automations/${a.id}/logs`)}
               onDelete={() => setPendingDelete(a)}
+              onApprove={() => review(a, "approved")}
+              onReject={() => review(a, "rejected")}
               t={t}
             />
           ))}
@@ -263,19 +289,25 @@ export default function AutomationsPage() {
 
 function AutomationCard({
   automation,
+  canReview,
   onToggle,
   onEdit,
   onDuplicate,
   onLogs,
   onDelete,
+  onApprove,
+  onReject,
   t,
 }: {
   automation: Automation
+  canReview: boolean
   onToggle: (next: boolean) => void
   onEdit: () => void
   onDuplicate: () => void
   onLogs: () => void
   onDelete: () => void
+  onApprove: () => void
+  onReject: () => void
   t: ReturnType<typeof useTranslations>
 }) {
   const meta = triggerMeta(automation.trigger_type)
@@ -304,6 +336,19 @@ function AutomationCard({
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
               </span>
             )}
+            {automation.approval_status === "pending" && (
+              <span className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                Pending review
+              </span>
+            )}
+            {automation.approval_status === "rejected" && (
+              <span
+                className="inline-flex items-center rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-[11px] font-medium text-red-600 dark:text-red-400"
+                title={automation.rejection_reason ?? undefined}
+              >
+                Rejected
+              </span>
+            )}
           </div>
           {automation.description && (
             <p className="mt-0.5 truncate text-xs text-muted-foreground">{automation.description}</p>
@@ -328,11 +373,28 @@ function AutomationCard({
         </button>
 
         <div className="flex items-center gap-3">
-          <Switch
-            checked={automation.is_active}
-            onCheckedChange={(v) => onToggle(!!v)}
-            aria-label={automation.is_active ? t("deactivate") : t("activate")}
-          />
+          {automation.approval_status === "pending" && canReview ? (
+            <div className="flex items-center gap-1.5">
+              <Button size="sm" variant="outline" onClick={onApprove}>
+                Approve
+              </Button>
+              <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-400" onClick={onReject}>
+                Reject
+              </Button>
+            </div>
+          ) : automation.approval_status === "pending" ? (
+            <span className="text-xs text-muted-foreground">Awaiting approval</span>
+          ) : canReview ? (
+            <Switch
+              checked={automation.is_active}
+              onCheckedChange={(v) => onToggle(!!v)}
+              aria-label={automation.is_active ? t("deactivate") : t("activate")}
+            />
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              {automation.is_active ? "Active" : "Inactive"}
+            </span>
+          )}
 
           <DropdownMenu>
             <DropdownMenuTrigger

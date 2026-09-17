@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
+import { hasMinRole, type AccountRole } from '@/lib/auth/roles'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { getTemplate } from '@/lib/automations/templates'
 import { insertSteps, type BuilderStepInput } from '@/lib/automations/steps-tree'
@@ -32,8 +33,9 @@ export async function POST(request: Request) {
   // enforced here; the matching automations_insert RLS policy was loosened
   // to match (migration 069). Note: *running* an automation (engine route)
   // still sends real outbound WhatsApp messages and stays agent+.
+  let callerRole: AccountRole
   try {
-    await requireRole('viewer')
+    callerRole = (await requireRole('viewer')).role
   } catch (err) {
     return toErrorResponse(err)
   }
@@ -89,11 +91,18 @@ export async function POST(request: Request) {
     )
   }
 
+  // Automations created by a viewer land 'pending' and can never be
+  // active until an agent+ reviews them — activating an automation
+  // sends real messages, so a viewer can author the definition but
+  // can't put it live on their own (see 075_automation_approval.sql).
+  const isApproved = hasMinRole(callerRole, 'agent')
+  const effectiveIsActive = isApproved && !!is_active
+
   // Block activation of a clearly broken automation up-front instead of
   // letting every trigger silently produce a failed log row. Drafts
   // (is_active=false) are allowed to be incomplete so users can save
   // progress mid-build.
-  if (is_active) {
+  if (effectiveIsActive) {
     const issues = [
       ...validateTriggerForActivation(effectiveTriggerType, effectiveTriggerConfig ?? {}),
       ...validateStepsForActivation(
@@ -118,7 +127,9 @@ export async function POST(request: Request) {
       description: effectiveDescription ?? null,
       trigger_type: effectiveTriggerType,
       trigger_config: effectiveTriggerConfig ?? {},
-      is_active: !!is_active,
+      is_active: effectiveIsActive,
+      approval_status: isApproved ? 'approved' : 'pending',
+      submitted_by: user.id,
     })
     .select()
     .single()

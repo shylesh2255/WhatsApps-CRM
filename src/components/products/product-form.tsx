@@ -12,6 +12,7 @@ import Image from "next/image";
 import { toast } from "sonner";
 import { CURRENCIES } from "@/lib/currency";
 import { clampNonNegative } from "@/lib/validation/format";
+import { isPlanLimitError, PLAN_LIMIT_MESSAGE } from "@/lib/billing/plan-limit-error";
 
 interface ProductFormProps {
   accountId: string;
@@ -165,7 +166,7 @@ export function ProductForm({ accountId, product, onSuccess }: ProductFormProps)
       onSuccess();
     } catch (error) {
       console.error("Error saving product:", error);
-      toast.error("Failed to save product");
+      toast.error(isPlanLimitError(error) ? PLAN_LIMIT_MESSAGE : "Failed to save product");
     } finally {
       setIsSubmitting(false);
     }

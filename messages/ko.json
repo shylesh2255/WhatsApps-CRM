@@ -1552,8 +1552,10 @@
       "quick-replies": "빠른 답장",
       "fields": "필드 & 태그",
       "deals": "딜 & 통화",
+      "quiet-hours": "조용한 시간",
       "members": "팀원",
       "api": "API 키",
+      "webhooks": "웹훅",
       "billing": "결제"
     },
     "groups": {

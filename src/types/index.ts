@@ -109,6 +109,11 @@ export interface Contact {
   email?: string;
   company?: string;
   avatar_url?: string;
+  /** True once the contact has replied STOP/unsubscribe or been
+   *  manually flagged — every send path refuses to message them
+   *  (see 076_contact_consent.sql). */
+  opted_out?: boolean;
+  opted_out_at?: string | null;
   created_at: string;
   updated_at: string;
   /** Hydrated by queries that embed `contact_tags(tags(*))` (e.g. the
@@ -166,6 +171,11 @@ export interface Conversation {
   assigned_agent_id?: string;
   last_message_text?: string;
   last_message_at?: string;
+  /** Last message actually received FROM the contact (unlike
+   *  last_message_at, never bumped by an outbound send) — used to
+   *  warn when a reply may fall outside WhatsApp's 24h free-form
+   *  session window (076_contact_consent.sql). */
+  last_inbound_at?: string | null;
   unread_count: number;
   created_at: string;
   updated_at: string;
@@ -623,6 +633,14 @@ export interface Automation {
   trigger_type: AutomationTriggerType;
   trigger_config: AutomationTriggerConfig;
   is_active: boolean;
+  /** 'pending' when authored by a viewer and not yet reviewed by
+   *  agent+; 'approved' automations may be activated; 'rejected' ones
+   *  stay inactive until edited again (see 075_automation_approval.sql). */
+  approval_status: 'pending' | 'approved' | 'rejected';
+  submitted_by?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  rejection_reason?: string | null;
   execution_count: number;
   last_executed_at?: string | null;
   created_at: string;

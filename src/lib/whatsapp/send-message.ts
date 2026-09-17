@@ -279,6 +279,14 @@ export async function sendMessageToConversation(
     );
   }
 
+  if (contact.opted_out) {
+    throw new SendMessageError(
+      'contact_opted_out',
+      'This contact has opted out of messages and cannot be contacted.',
+      403
+    );
+  }
+
   const sanitizedPhone = sanitizePhoneForMeta(contact.phone);
   if (!isValidE164(sanitizedPhone)) {
     throw new SendMessageError(

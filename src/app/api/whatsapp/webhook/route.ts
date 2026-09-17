@@ -771,6 +771,18 @@ async function processMessage(
   // trigger installed in migration 003).
   await flagBroadcastReplyIfAny(accountId, contactRecord.id)
 
+  // Compliance safety net: a contact whose ENTIRE message is a
+  // standard opt-out word is marked opted_out so every send path
+  // (send-message.ts, meta-send.ts, broadcast-core.ts) refuses to
+  // message them again until a human clears the flag.
+  const normalizedText = (contentText ?? '').trim().toLowerCase()
+  if (['stop', 'unsubscribe', 'opt out', 'optout'].includes(normalizedText)) {
+    await supabaseAdmin()
+      .from('contacts')
+      .update({ opted_out: true, opted_out_at: new Date().toISOString() })
+      .eq('id', contactRecord.id)
+  }
+
   // ============================================================
   // Flow runner dispatch.
   //

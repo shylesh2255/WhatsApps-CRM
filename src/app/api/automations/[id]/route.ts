@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
+import { hasMinRole } from '@/lib/auth/roles'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import {
   loadStepsTree,
@@ -51,8 +52,12 @@ export async function PATCH(
 
   // Editing an automation definition is allowed at any role — see the
   // POST handler in ../route.ts for why viewer is intentional here.
+  let callerRole: import('@/lib/auth/roles').AccountRole
+  let callerAccountId: string
   try {
-    await requireRole('viewer')
+    const ctx = await requireRole('viewer')
+    callerRole = ctx.role
+    callerAccountId = ctx.accountId
   } catch (err) {
     return toErrorResponse(err)
   }
@@ -69,22 +74,56 @@ export async function PATCH(
   // to compute the post-patch "effective" state for validation.
   const { data: existing } = await admin
     .from('automations')
-    .select('id, user_id, is_active, trigger_type, trigger_config')
+    .select('id, user_id, account_id, is_active, trigger_type, trigger_config')
     .eq('id', id)
     .maybeSingle()
-  if (!existing || existing.user_id !== user.id) {
+
+  const isAuthor = !!existing && existing.user_id === user.id
+  // agent+ may review (approve/reject) any automation in their own
+  // account — this is the only way a viewer's submission ever gets
+  // approved, since the viewer who authored it can't self-approve.
+  const isReviewer =
+    !!existing && existing.account_id === callerAccountId && hasMinRole(callerRole, 'agent')
+  if (!existing || (!isAuthor && !isReviewer)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
   const update: Record<string, unknown> = {}
-  for (const k of [
-    'name',
-    'description',
-    'trigger_type',
-    'trigger_config',
-    'is_active',
-  ] as const) {
-    if (k in body) update[k] = body[k]
+
+  if (isAuthor) {
+    for (const k of [
+      'name',
+      'description',
+      'trigger_type',
+      'trigger_config',
+      'is_active',
+    ] as const) {
+      if (k in body) update[k] = body[k]
+    }
+    // A viewer editing their own automation always sends it back for
+    // re-review, no matter what changed — see 075_automation_approval.sql.
+    if (!hasMinRole(callerRole, 'agent') && Object.keys(update).length > 0) {
+      update.approval_status = 'pending'
+      update.is_active = false
+    }
+  }
+
+  if (isReviewer && 'approval_status' in body) {
+    const next = body.approval_status
+    if (next === 'approved' || next === 'rejected') {
+      update.approval_status = next
+      update.reviewed_by = user.id
+      update.reviewed_at = new Date().toISOString()
+      if (next === 'rejected') {
+        update.rejection_reason =
+          typeof body.rejection_reason === 'string' ? body.rejection_reason : null
+        update.is_active = false
+      }
+    }
+  }
+
+  if (Object.keys(update).length === 0 && !(isAuthor && Array.isArray(body.steps))) {
+    return NextResponse.json({ error: 'No recognized fields to update' }, { status: 400 })
   }
 
   // If this PATCH leaves the automation active (either explicitly
@@ -122,7 +161,7 @@ export async function PATCH(
     if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 })
   }
 
-  if (Array.isArray(body.steps)) {
+  if (isAuthor && Array.isArray(body.steps)) {
     const err = await replaceSteps(id, body.steps as BuilderStepInput[])
     if (err) return NextResponse.json({ error: err }, { status: 500 })
   }

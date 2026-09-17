@@ -12,6 +12,7 @@ import {
   isUniqueViolation,
   type ExistingContact,
 } from '@/lib/contacts/dedupe';
+import { isPlanLimitError, PLAN_LIMIT_MESSAGE } from '@/lib/billing/plan-limit-error';
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { isValidEmail, isValidPhone } from '@/lib/validation/format';
@@ -55,6 +57,7 @@ export function ContactForm({
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
+  const [optedOut, setOptedOut] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Duplicate-phone detection for NEW contacts. `exact` (same digits)
@@ -76,6 +79,7 @@ export function ContactForm({
       setPhone(contact?.phone ?? '');
       setEmail(contact?.email ?? '');
       setCompany(contact?.company ?? '');
+      setOptedOut(contact?.opted_out ?? false);
       setSelectedTagIds(contactTags.map((ct) => ct.tag_id));
       setDupMatch(null);
       fetchTags();
@@ -158,6 +162,7 @@ export function ContactForm({
       let contactId = contact?.id;
 
       if (isEdit && contactId) {
+        const optedOutChanged = optedOut !== (contact?.opted_out ?? false);
         const { error } = await supabase
           .from('contacts')
           .update({
@@ -165,6 +170,12 @@ export function ContactForm({
             phone: phone.trim(),
             email: email.trim() || null,
             company: company.trim() || null,
+            opted_out: optedOut,
+            opted_out_at: optedOutChanged
+              ? optedOut
+                ? new Date().toISOString()
+                : null
+              : contact?.opted_out_at,
             updated_at: new Date().toISOString(),
           })
           .eq('id', contactId);
@@ -219,6 +230,10 @@ export function ContactForm({
           );
           if (existing) setDupMatch({ contact: existing, exact: true });
         }
+        return;
+      }
+      if (isPlanLimitError(err)) {
+        toast.error(PLAN_LIMIT_MESSAGE);
         return;
       }
       const message = err instanceof Error ? err.message : t('toastError');
@@ -330,6 +345,22 @@ export function ContactForm({
               className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
             />
           </div>
+
+          {isEdit && (
+            <label className="flex cursor-pointer items-start gap-2.5">
+              <Checkbox
+                checked={optedOut}
+                onCheckedChange={(checked) => setOptedOut(checked === true)}
+                className="mt-0.5"
+              />
+              <span className="text-sm">
+                <span className="text-foreground">Opted out of messages</span>
+                <span className="block text-xs text-muted-foreground">
+                  No automation, broadcast, or manual send will reach this contact while checked.
+                </span>
+              </span>
+            </label>
+          )}
 
           <div className="space-y-2">
             <Label className="text-muted-foreground">{t('tagsLabel')}</Label>

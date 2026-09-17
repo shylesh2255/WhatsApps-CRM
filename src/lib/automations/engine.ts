@@ -24,6 +24,7 @@ import { MAX_TAG_CHAIN_DEPTH, getTagChainDepth } from '@/lib/contacts/tag-chain'
 import { engineSendText, engineSendTemplate, engineSendInteractive } from './meta-send'
 import { validateInteractivePayload } from '@/lib/whatsapp/interactive'
 import { isDeliverableUrl } from '@/lib/webhooks/ssrf'
+import { dispatchWebhookEvent } from '@/lib/webhooks/deliver'
 
 // ------------------------------------------------------------
 // Public API
@@ -98,6 +99,10 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
       .eq('account_id', input.accountId)
       .eq('trigger_type', input.triggerType)
       .eq('is_active', true)
+      // Belt-and-suspenders alongside the enforce_automation_approval
+      // trigger (075_automation_approval.sql): a pending/rejected
+      // automation can never fire even if is_active were somehow true.
+      .eq('approval_status', 'approved')
 
     if (error) {
       console.error('[automations] fetch failed:', error)
@@ -217,6 +222,32 @@ async function executeAutomation(automation: Automation, input: DispatchInput) {
     logId: log.id,
     triggerEvent: input.triggerType,
   })
+
+  // Outgoing webhook (src/lib/webhooks/deliver.ts, event
+  // 'automation.executed', migration 028_webhook_endpoints.sql).
+  // Reports whatever status this pass ended
+  // at — for a run suspended on a `wait` step that's 'partial', and
+  // the later resume (resumePendingExecution, above) doesn't re-fire
+  // this event, so a waited automation's true completion isn't
+  // separately reported. Re-reading the row rather than threading a
+  // return value through executeStepsFrom/appendResults/finalizeLog
+  // keeps this dispatch a pure addition, not a refactor of that
+  // nested-branch/suspension logic.
+  const { data: finishedLog } = await db
+    .from('automation_logs')
+    .select('status')
+    .eq('id', log.id)
+    .single()
+  if (finishedLog) {
+    void dispatchWebhookEvent(db, automation.account_id, 'automation.executed', {
+      automation_id: automation.id,
+      automation_name: automation.name,
+      log_id: log.id,
+      status: finishedLog.status,
+      contact_id: input.contactId ?? null,
+      trigger_type: input.triggerType,
+    })
+  }
 
   // Atomic counter update via the SQL function from migration 007.
   // Doing this with a client-side read-modify-write raced when the

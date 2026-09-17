@@ -15,6 +15,7 @@ import {
   resolveTemplateRow,
   templateContentText,
 } from '@/lib/whatsapp/template-body'
+import { isWithinQuietHours } from '@/lib/whatsapp/quiet-hours'
 import { supabaseAdmin } from './admin-client'
 
 // ------------------------------------------------------------
@@ -112,6 +113,17 @@ type SendInput =
 async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: string }> {
   const db = supabaseAdmin()
 
+  // Quiet hours gate first — cheapest check, and avoids a wasted
+  // contact/config lookup when we're just going to skip the send.
+  const { data: account } = await db
+    .from('accounts')
+    .select('quiet_hours_enabled, quiet_hours_start, quiet_hours_end, quiet_hours_timezone')
+    .eq('id', input.accountId)
+    .maybeSingle()
+  if (account && isWithinQuietHours(account)) {
+    throw new Error('quiet_hours: this account is inside its configured quiet hours')
+  }
+
   // Scope the contact + config lookups by account_id, not user_id.
   // The engine uses the service-role client (bypassing RLS); without
   // this filter, an authenticated user could fire their own
@@ -122,12 +134,15 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
   // new tenancy column.
   const { data: contact, error: contactErr } = await db
     .from('contacts')
-    .select('id, phone')
+    .select('id, phone, opted_out')
     .eq('id', input.contactId)
     .eq('account_id', input.accountId)
     .maybeSingle()
   if (contactErr || !contact?.phone) {
     throw new Error('contact not found for this account')
+  }
+  if (contact.opted_out) {
+    throw new Error('contact_opted_out: this contact has opted out of messages')
   }
 
   const sanitized = sanitizePhoneForMeta(contact.phone)
@@ -145,6 +160,28 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
   }
 
   const accessToken = decrypt(config.access_token)
+
+  // Reserve one chat against the account's plan before contacting Meta.
+  // Manual sends (src/lib/whatsapp/send-message.ts) already do this;
+  // automation-triggered sends previously bypassed plan limits entirely.
+  // p_user_id: null lets the RPC resolve the account owner itself (its
+  // own documented fallback) — there's no "calling agent" here, this is
+  // account-wide automated sending.
+  const { data: usage, error: usageErr } = await db.rpc('check_and_increment_chat_usage', {
+    p_account_id: input.accountId,
+    p_user_id: null,
+  })
+  if (usageErr) {
+    throw new Error(`plan usage check failed: ${usageErr.message}`)
+  }
+  const usageRow = Array.isArray(usage) ? usage[0] : usage
+  if (usageRow && !usageRow.allowed) {
+    throw new Error(
+      usageRow.reason === 'chat_limit_reached'
+        ? 'chat_limit_reached: this account has hit its plan\'s chat limit for the current billing period'
+        : 'subscription_inactive: this account\'s subscription is not active',
+    )
+  }
 
   // Local template row — read for the body we persist below, not for
   // the Meta payload (the wire shape is deliberately unchanged here).
