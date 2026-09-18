@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,7 @@ export default function SignupPage() {
 }
 
 function SignupPageInner() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   // When the user lands here from `/join/<token>` we carry the
   // invite token in the query so it survives the signup → email
@@ -83,7 +84,7 @@ function SignupPageInner() {
       ? `${window.location.origin}/join/${encodeURIComponent(inviteToken)}`
       : undefined;
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -106,6 +107,15 @@ function SignupPageInner() {
     if (error) {
       setError(error.message);
       setLoading(false);
+      return;
+    }
+
+    // Supabase returns a live session immediately when the project's
+    // "Confirm email" requirement is off — no confirmation email was
+    // ever sent in that case, so the "check your inbox" screen below
+    // would be actively misleading. Go straight in instead.
+    if (data.session) {
+      router.push(inviteToken ? `/join/${encodeURIComponent(inviteToken)}` : "/dashboard");
       return;
     }
 
